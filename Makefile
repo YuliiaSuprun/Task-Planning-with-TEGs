@@ -1,10 +1,10 @@
 CXX = g++
 CXXFLAGS = -std=c++17 -Wall -Wextra -IGridWorld -ILTLStuff
 
-SRC = main.cpp
+SRC = main.cpp GridWorld/GridWorldDomain.cpp
 OBJ = $(SRC:.cpp=.o)
 DEP = $(OBJ:.o=.d)
-HEADERS = LTLFormula.h GridState.h
+HEADERS = LTLFormula.h GridState.h GridWorldDomain.h
 TARGET = main
 
 all: $(TARGET)

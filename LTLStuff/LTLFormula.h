@@ -17,11 +17,20 @@ public:
     string get_formula() const { return formula_; }
     map<string, set<GridState>> get_ap_mapping() const { return ap_mapping_; }
 
+    // Overloading the << operator.
+    friend ostream& operator<<(ostream& os, const LTLFormula& ltlFormula);
+
     // Additional utility methods can be added as required
 
 private:
     string formula_;
     map<string, set<GridState>> ap_mapping_;
 };
+
+// Definition of the overloaded << operator for LTLFormula
+ostream& operator<<(ostream& os, const LTLFormula& ltlFormula) {
+    os << ltlFormula.formula_;
+    return os;
+}
 
 #endif // LTL_FORMULA_H

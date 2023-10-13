@@ -3,13 +3,13 @@
 
 class GridState {
 public:
-    GridState(int x = 0, int y = 0) : x_(x), y_(y) {}
+    GridState(size_t x = 0, size_t y = 0) : x_(x), y_(y) {}
 
-    int x() const { return x_; }
-    int y() const { return y_; }
+    size_t x() const { return x_; }
+    size_t y() const { return y_; }
 
-    void set_x(int x) { x_ = x; }
-    void set_y(int y) { y_ = y; }
+    void set_x(size_t x) { x_ = x; }
+    void set_y(size_t y) { y_ = y; }
 
     bool operator==(const GridState& other) const {
         return x_ == other.x_ && y_ == other.y_;
@@ -21,8 +21,8 @@ public:
     }
 
 private:
-    int x_;
-    int y_;
+    size_t x_;
+    size_t y_;
 };
 
 #endif // GRID_STATE_H
