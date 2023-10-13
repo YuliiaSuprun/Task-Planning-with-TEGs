@@ -2,6 +2,7 @@
 
 #include <stdexcept>
 #include <fstream>
+#include <sstream>
 #include <iostream>
 #include <graphviz/gvc.h>
 
@@ -9,12 +10,18 @@ TEGTask::TEGTask(const LTLFormula& formula,
                 const GridWorldDomain& grid_domain,  
                 const GridState& start_grid_state, int task_id)
     : formula_(formula), grid_domain_(grid_domain), 
-      start_grid_state_(start_grid_state), task_id_(task_id) { 
+      start_grid_state_(start_grid_state), task_id_(task_id), 
+      filename_{} { 
     // Check if the start state is valid.
     if (!grid_domain_.is_valid_state(start_grid_state_)) {
         cerr << "ERROR: Invalid start state in the GridWorldDomain" << endl;
     }
     cout << "Creating dfa for task_id=" << task_id_ << endl;
+    // Get a name for output files.
+    stringstream ss;
+    ss << "dfa" << task_id_;
+    filename_ = ss.str();
+
     // Compute the DFA corresponding to the given LTL formula.
     dfa_ = convert_to_dfa(formula_);
     save_dfa(dfa_);
@@ -40,23 +47,34 @@ shared_ptr<spot::twa_graph> TEGTask::convert_to_dfa(const LTLFormula& formula) {
     trans.set_pref(spot::postprocessor::Deterministic); 
     // Translate LTL formula to a DFA using Spot tranlsator.
     auto translated_dfa = trans.run(spot_formula);
-    cout << "Generated DFA!" << endl;
     return translated_dfa;
 }
 
 void TEGTask::save_dfa(const shared_ptr<spot::twa_graph>& dfa) {
-    ofstream out("dfa.dot");
+
+    string dot_filename = filename_ + ".dot";
+    string png_filename = filename_ + ".png";
+
+    ofstream out(dot_filename);
     spot::print_dot(out, dfa);
     out.close();
 
     // Render the DFA dot to an image (this assumes you have Graphviz installed)
     GVC_t* gvc = gvContext();
-    Agraph_t* graph = agread(new ifstream("dfa.dot"), 0);
+    FILE* file = fopen(dot_filename.c_str(), "r");
+    if (!file) {
+        cerr << "Failed to open " << dot_filename << " for reading." << endl;
+        return;
+    }
+
+    Agraph_t* graph = agread(file, 0);
     gvLayout(gvc, graph, "dot");
-    gvRenderFilename(gvc, graph, "png", "dfa.png");
+    gvRenderFilename(gvc, graph, "png", png_filename.c_str());
     gvFreeLayout(gvc, graph);
     agclose(graph);
     gvFreeContext(gvc);
+
+    fclose(file);
 }
 
 void TEGTask::compute_product() {

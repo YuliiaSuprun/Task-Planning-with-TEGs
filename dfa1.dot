@@ -1,0 +1,21 @@
+digraph "" {
+  rankdir=LR
+  label="[Büchi]"
+  labelloc="t"
+  node [shape="circle"]
+  I [label="", style=invis, width=0]
+  I -> 2
+  0 [label="0", peripheries=2]
+  0 -> 0 [label="1"]
+  1 [label="1"]
+  1 -> 0 [label="c"]
+  1 -> 1 [label="!c"]
+  2 [label="2"]
+  2 -> 0 [label="c & g"]
+  2 -> 1 [label="!c & g"]
+  2 -> 2 [label="!c & !g"]
+  2 -> 3 [label="c & !g"]
+  3 [label="3"]
+  3 -> 0 [label="g"]
+  3 -> 3 [label="!g"]
+}

@@ -48,6 +48,8 @@ private:
     vector<ProductState> product_path_;
     vector<GridState> grid_path_;
     vector<int> dfa_path_;
+
+    string filename_;
 };
 
 #endif // TEG_TASK_H
