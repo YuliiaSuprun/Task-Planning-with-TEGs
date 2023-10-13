@@ -1,6 +1,9 @@
 #ifndef GRID_STATE_H
 #define GRID_STATE_H
 
+#include <iostream>
+#include "GridAction.h"
+
 class GridState {
 public:
     GridState(size_t x = 0, size_t y = 0) : x_(x), y_(y) {}
@@ -20,9 +23,23 @@ public:
         return y_ < other.y_;
     }
 
+    friend std::ostream& operator<<(std::ostream& os, const GridState& gs);
+
+    // Apply a GridAction to the current state and return the resulting state.
+    GridState apply(const GridAction& action) const {
+        return GridState(x_ + action.deltaX(), y_ + action.deltaY());
+    }
+
+
 private:
     size_t x_;
     size_t y_;
 };
+
+inline std::ostream& operator<<(std::ostream& os, const GridState& gs) {
+    os << "[" << gs.x() << ", " << gs.y() << "]";
+    return os;
+}
+
 
 #endif // GRID_STATE_H

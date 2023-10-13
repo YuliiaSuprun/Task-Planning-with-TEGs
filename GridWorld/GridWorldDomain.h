@@ -13,8 +13,14 @@ public:
                     const vector<vector<bool>>& obstacle_matrix = {},
                     const vector<GridAction>& actions = {});
     
+    // Getters.
     size_t R() const { return R_; }
     size_t C() const { return C_; }
+    const vector<vector<bool>>& get_obstacle_matrix() const { return obstacle_matrix_; }
+    const vector<GridAction>& get_actions() const { return actions_; }
+
+
+
     
     bool is_valid_state(const GridState& state) const;
     bool is_valid_transition(const GridState& s1, const GridState& action, const GridState& s2) const;

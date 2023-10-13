@@ -8,6 +8,8 @@
 #include <spot/tl/formula.hh>
 #include <spot/twaalgos/dot.hh>
 #include <spot/twaalgos/translate.hh>
+#include <spot/twa/bddprint.hh>
+#include <bddx.h>
 #include <map>
 #include <vector>
 #include <string>
@@ -19,6 +21,8 @@ class TEGTask {
 public:
     TEGTask(const LTLFormula& formula, const GridWorldDomain& grid_domain,  
              const GridState& start_grid_state, int task_id = 0);
+
+    ~TEGTask();
     
     vector<ProductState> solve();
     vector<GridState> get_grid_path() const;
@@ -26,6 +30,7 @@ public:
 
 private:
     set<string> atomic_props(const GridState& grid_state);
+    bdd props_to_bdd(const set<string>& props);
     shared_ptr<spot::twa_graph> convert_to_dfa(const LTLFormula& formula);
     void save_dfa(const shared_ptr<spot::twa_graph>& dfa);
     void compute_product();
@@ -50,6 +55,7 @@ private:
     vector<int> dfa_path_;
 
     string filename_;
+    spot::bdd_dict_ptr bdd_dict_;
 };
 
 #endif // TEG_TASK_H

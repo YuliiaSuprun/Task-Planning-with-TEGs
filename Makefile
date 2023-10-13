@@ -1,6 +1,6 @@
 CXX = g++
 CXXFLAGS = -std=c++17 -Wall -Wextra -IGridWorld -ILTLStuff -I$(HOME)/miniconda3/envs/spotenv/include
-LDFLAGS = -L$(HOME)/miniconda3/envs/spotenv/lib -lspot -lgvc -lcgraph
+LDFLAGS = -L$(HOME)/miniconda3/envs/spotenv/lib -lspot -lbddx -lgvc -lcgraph
 
 SRC = main.cpp GridWorld/GridWorldDomain.cpp LTLStuff/TEGTask.cpp
 OBJ = $(SRC:.cpp=.o)
