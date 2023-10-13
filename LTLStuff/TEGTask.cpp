@@ -23,15 +23,25 @@ TEGTask::TEGTask(const LTLFormula& formula,
 }
 
 shared_ptr<spot::twa_graph> TEGTask::convert_to_dfa(const LTLFormula& formula) {
-    // Translate LTL formula to DFA using Spot
     spot::formula spot_formula = formula.get_spot_formula();
     if (spot_formula == nullptr) {
         cerr << "Failed to parse the LTL formula" << endl;
         return nullptr;
     }
-    // auto translated_dfa = spot::translate(spot_formula, spot::postprocessor::HOA);
-    // return translated_dfa;
-    return nullptr;
+    // Create a translator instance. 
+    spot::translator trans;
+
+    // No guarantee that the automaton will be "Deterministic" 
+    // if we use TGBA or BA (Büchi Automaton) options in set_type() 
+    // We must use "Generic" option if we absolutely want determinism!
+    trans.set_type(spot::postprocessor::Generic);
+    // Small and Deterministic are exclusive choices for set_pref
+    // indicate whether a smaller non-deterministic automaton should be preferred over a deterministic automaton
+    trans.set_pref(spot::postprocessor::Deterministic); 
+    // Translate LTL formula to a DFA using Spot tranlsator.
+    auto translated_dfa = trans.run(spot_formula);
+    cout << "Generated DFA!" << endl;
+    return translated_dfa;
 }
 
 void TEGTask::save_dfa(const shared_ptr<spot::twa_graph>& dfa) {

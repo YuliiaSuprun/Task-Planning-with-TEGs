@@ -27,12 +27,9 @@ public:
         spot::parsed_formula pf = spot::parse_infix_psl(formula_);
         // Here, we could also handle any parsing errors.
         (void) pf.format_errors(cerr);
-        // For now, we will just directly return the parsed formula.
-        // In a real-world application, you may want to handle errors more gracefully.
         cout << "spot formula: " << pf.f << endl;
         return pf.f;
     }
-
 
     // Overloading the << operator.
     friend ostream& operator<<(ostream& os, const LTLFormula& ltlFormula);
