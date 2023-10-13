@@ -8,7 +8,7 @@
 #include "GridWorldDomain.h"
 #include "LTLFormula.h"
 // #include "utility_funcs.h"
-// #include "TEG_Task.h"
+#include "TEGTask.h"
 
 using namespace std;
 
@@ -21,12 +21,7 @@ int main() {
     // Create the obstacle matrix.
     // vector<vector<bool>> obstacle_matrix = create_border_obstacle_matrix(R, C); 
 
-    try {
-        GridWorldDomain domain(R, C);
-    } catch (const runtime_error& e) {
-        cerr << "ERROR: " << e.what() << std::endl;
-        return 1;
-    }
+    GridWorldDomain domain(R, C);
 
     // Define default locations for atomic propositions
     GridState goal(19, 19);
@@ -46,11 +41,7 @@ int main() {
         LTLFormula formula = ltl_formula_list.at(task_id);
         cout << "Solving for task_id=" << task_id << " and formula=" << formula << endl;
 
-        // // Create the TEG_Task instance with the chosen LTLf formula
-        // TEG_Task task(formula, domain, start_grid_state, task_id);
-
-        // // Compute the product automaton
-        // task.compute_product();
+        TEGTask task(formula, domain, start_grid_state, task_id);
 
         // // Solve the task and get the solution path
         // vector<GridState> solution_path = task.solve();

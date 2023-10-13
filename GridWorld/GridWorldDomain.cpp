@@ -4,7 +4,7 @@
 
 GridWorldDomain::GridWorldDomain(size_t R, size_t C, 
                                  const vector<vector<bool>>& obstacle_matrix,
-                                 const vector<GridState>& actions) 
+                                 const vector<GridAction>& actions) 
     : R_(R), C_(C) {
     if (actions.empty()) {
         initializeDefaultActions();
@@ -16,7 +16,7 @@ GridWorldDomain::GridWorldDomain(size_t R, size_t C,
         initializeDefaultObstacleMatrix();
     } else {
         if (obstacle_matrix.size() != R_ || (R_ > 0 && obstacle_matrix[0].size() != C_)) {
-            throw runtime_error("Obstacle matrix dimensions mismatch");
+            cerr << "ERROR: Obstacle matrix dimensions mismatch" << endl;
         }
         obstacle_matrix_ = obstacle_matrix;
     }
@@ -37,14 +37,14 @@ bool GridWorldDomain::is_valid_transition(const GridState& s1, const GridState& 
 }
 
 void GridWorldDomain::initializeDefaultActions() {
-    actions_.push_back(GridState(0, 1));
-    actions_.push_back(GridState(1, 1));
-    actions_.push_back(GridState(1, 0));
-    actions_.push_back(GridState(1, -1));
-    actions_.push_back(GridState(0, -1));
-    actions_.push_back(GridState(-1, -1));
-    actions_.push_back(GridState(-1, 0));
-    actions_.push_back(GridState(-1, 1));
+    actions_.push_back(GridAction(0, 1));
+    actions_.push_back(GridAction(1, 1));
+    actions_.push_back(GridAction(1, 0));
+    actions_.push_back(GridAction(1, -1));
+    actions_.push_back(GridAction(0, -1));
+    actions_.push_back(GridAction(-1, -1));
+    actions_.push_back(GridAction(-1, 0));
+    actions_.push_back(GridAction(-1, 1));
 }
 
 void GridWorldDomain::initializeDefaultObstacleMatrix() {

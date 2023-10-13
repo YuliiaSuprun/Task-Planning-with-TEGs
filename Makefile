@@ -1,16 +1,17 @@
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall -Wextra -IGridWorld -ILTLStuff
+CXXFLAGS = -std=c++17 -Wall -Wextra -IGridWorld -ILTLStuff -I$(HOME)/miniconda3/envs/spotenv/include
+LDFLAGS = -L$(HOME)/miniconda3/envs/spotenv/lib -lspot -lgvc -lcgraph
 
-SRC = main.cpp GridWorld/GridWorldDomain.cpp
+SRC = main.cpp GridWorld/GridWorldDomain.cpp LTLStuff/TEGTask.cpp
 OBJ = $(SRC:.cpp=.o)
 DEP = $(OBJ:.o=.d)
-HEADERS = LTLFormula.h GridState.h GridWorldDomain.h
+HEADERS = LTLFormula.h GridState.h GridAction.h GridWorldDomain.h TEGTask.h ProductState.h
 TARGET = main
 
 all: $(TARGET)
 
 $(TARGET): $(OBJ)
-	$(CXX) $(CXXFLAGS) -o $@ $^
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 
 -include $(DEP)
 

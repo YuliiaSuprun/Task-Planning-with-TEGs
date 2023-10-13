@@ -3,6 +3,7 @@
 
 #include <vector>
 #include "GridState.h"
+#include "GridAction.h"
 
 using namespace std;
 
@@ -10,7 +11,7 @@ class GridWorldDomain {
 public:
     GridWorldDomain(size_t R, size_t C, 
                     const vector<vector<bool>>& obstacle_matrix = {},
-                    const vector<GridState>& actions = {});
+                    const vector<GridAction>& actions = {});
     
     size_t R() const { return R_; }
     size_t C() const { return C_; }
@@ -25,7 +26,7 @@ private:
 
     size_t R_;
     size_t C_;
-    vector<GridState> actions_;
+    vector<GridAction> actions_;
     vector<vector<bool>> obstacle_matrix_;
 };
 

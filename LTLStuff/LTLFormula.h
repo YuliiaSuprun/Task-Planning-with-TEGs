@@ -4,6 +4,11 @@
 #include <string>
 #include <map>
 #include <set>
+#include <iostream>
+
+#include <spot/tl/formula.hh>
+#include <spot/tl/parse.hh>
+#include <spot/tl/print.hh>
 #include "GridState.h"
 
 using namespace std;
@@ -17,6 +22,18 @@ public:
     string get_formula() const { return formula_; }
     map<string, set<GridState>> get_ap_mapping() const { return ap_mapping_; }
 
+    // Function to return Spot's formula
+    spot::formula get_spot_formula() const {
+        spot::parsed_formula pf = spot::parse_infix_psl(formula_);
+        // Here, we could also handle any parsing errors.
+        (void) pf.format_errors(cerr);
+        // For now, we will just directly return the parsed formula.
+        // In a real-world application, you may want to handle errors more gracefully.
+        cout << "spot formula: " << pf.f << endl;
+        return pf.f;
+    }
+
+
     // Overloading the << operator.
     friend ostream& operator<<(ostream& os, const LTLFormula& ltlFormula);
 
@@ -28,7 +45,7 @@ private:
 };
 
 // Definition of the overloaded << operator for LTLFormula
-ostream& operator<<(ostream& os, const LTLFormula& ltlFormula) {
+inline ostream& operator<<(ostream& os, const LTLFormula& ltlFormula) {
     os << ltlFormula.formula_;
     return os;
 }
