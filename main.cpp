@@ -43,17 +43,18 @@ int main() {
 
         TEGTask task(formula, domain, start_grid_state, task_id);
 
-        // // Solve the task and get the solution path
-        // vector<GridState> solution_path = task.solve();
-        // if (!solution_path.empty()) {
-        //     cout << "Solution for task_id=" << task_id << " is:";
-        //     for (const auto& state : solution_path) {
-        //         cout << " [" << state.x() << "," << state.y() << "]";
-        //     }
-        //     cout << endl;
-        // } else {
-        //     cout << "No solution found for task_id=" << task_id << endl;
-        // }
+        // Solve the task and get the solution path
+        vector<ProductState> solution_path = task.solve();
+    
+        if (!solution_path.empty()) {
+            cout << "Solution for task_id=" << task_id << " is:" << endl;
+            task.print_product_path();
+            task.print_grid_path();
+            task.print_dfa_path();
+            task.visualize_path();
+        } else {
+            cout << "No solution found for task_id=" << task_id << endl;
+        }
     }
 
     return 0;

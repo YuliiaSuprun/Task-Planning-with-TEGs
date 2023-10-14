@@ -22,6 +22,12 @@ GridWorldDomain::GridWorldDomain(size_t R, size_t C,
     }
 }
 
+bool GridWorldDomain::is_obstacle(const GridState& state) const {
+    size_t x = state.x();
+    size_t y = state.y();
+    return obstacle_matrix_[x][y];
+}
+
 bool GridWorldDomain::is_valid_state(const GridState& state) const {
     size_t x = state.x();
     size_t y = state.y();

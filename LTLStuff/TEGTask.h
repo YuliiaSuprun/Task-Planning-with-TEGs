@@ -12,6 +12,7 @@
 #include <bddx.h>
 #include <map>
 #include <vector>
+#include <deque>
 #include <string>
 #include <set>
 
@@ -26,7 +27,12 @@ public:
     
     vector<ProductState> solve();
     vector<GridState> get_grid_path() const;
-    vector<int> get_dfa_path() const;
+    vector<size_t> get_dfa_path() const;
+
+    void print_product_path() const;
+    void print_grid_path() const;
+    void print_dfa_path() const;
+    void visualize_path();
 
 private:
     set<string> atomic_props(const GridState& grid_state);
@@ -35,6 +41,7 @@ private:
     void save_dfa(const shared_ptr<spot::twa_graph>& dfa);
     void compute_product();
     void save_paths();
+    void print_product_transitions();
 
     // Class members
     LTLFormula formula_;
@@ -52,7 +59,7 @@ private:
     // Solution path (if found).
     vector<ProductState> product_path_;
     vector<GridState> grid_path_;
-    vector<int> dfa_path_;
+    vector<size_t> dfa_path_;
 
     string filename_;
     spot::bdd_dict_ptr bdd_dict_;

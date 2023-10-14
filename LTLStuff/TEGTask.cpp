@@ -5,6 +5,7 @@
 #include <sstream>
 #include <iostream>
 #include <graphviz/gvc.h>
+#include <SFML/Graphics.hpp>
 
 TEGTask::TEGTask(const LTLFormula& formula,
                 const GridWorldDomain& grid_domain,  
@@ -76,7 +77,7 @@ void TEGTask::save_dfa(const shared_ptr<spot::twa_graph>& dfa) {
     spot::print_dot(out, dfa);
     out.close();
 
-    // Render the DFA dot to an image (this assumes you have Graphviz installed)
+    // Render the DFA dot to an image.
     GVC_t* gvc = gvContext();
     FILE* file = fopen(dot_filename.c_str(), "r");
     if (!file) {
@@ -118,7 +119,6 @@ void TEGTask::compute_product() {
         size_t dfa_state = prod_state.get_dfa_state();
         
         for (const auto& action : grid_domain_.get_actions()) {
-            cout << "New loop" << endl;
             GridState next_grid_state = grid_state.apply(action);
             if (!grid_domain_.is_valid_state(next_grid_state)) {
                 continue;
@@ -133,14 +133,10 @@ void TEGTask::compute_product() {
             }
 
             // BDD operations
-            cout << "Before make_shared<spot::bdd_dict>" << endl;
-            cout << "Before conversion" << endl;
             bdd bdd_expr = props_to_bdd(next_grid_state_props);
-            cout << "After conversion" << endl;
 
             for (auto& edge: dfa_->out(dfa_state)) {
                 if (edge.cond == bdd_expr) {
-                    cout << edge.cond << endl;
                     size_t next_dfa_state = edge.dst;
                     product_transitions_[prod_state].push_back(ProductState(next_grid_state, next_dfa_state));
                     break;
@@ -148,20 +144,10 @@ void TEGTask::compute_product() {
             }
             // For garbage collection purposes.
             bdd_expr = bddfalse;
-            cout << "After loop" << endl;
         }
     }
 
-    cout << "Product Transitions:" << endl;
-    for (const auto& transition_entry : product_transitions_) {
-        const ProductState& source_state = transition_entry.first;
-        cout << source_state << " -> "; 
-        const auto& target_states = transition_entry.second;
-        for (const auto& target_state : target_states) {
-            cout << target_state << ", ";  // Assuming you have an ostream operator for ProductState
-        }
-        cout << endl;
-    }
+    // print_product_transitions();
 }
 
 set<string> TEGTask::atomic_props(const GridState& grid_state) {
@@ -213,11 +199,50 @@ bdd TEGTask::props_to_bdd(const set<string>& props) {
 
 vector<ProductState> TEGTask::solve() {
     product_path_.clear();
-    // Implement the search/solution logic here.
-    // Update product_path_ 
-    save_paths();
-    return product_path_;
+
+    // The BFS queue.
+    deque<ProductState> queue;
+    queue.emplace_back(start_grid_state_, static_cast<size_t>(dfa_->get_init_state_number()));
+
+    // Keep track of visited states.
+    set<ProductState> visited;
+    visited.insert(queue.front());
+
+    // To backtrack the path.
+    map<ProductState, ProductState> parent_map;
+
+    while (!queue.empty()) {
+        ProductState current_state = queue.front();
+        queue.pop_front();
+
+        // Check if the DFA part of the product state is accepting.
+        if (dfa_->state_is_accepting(current_state.get_dfa_state())) {
+            product_path_.push_back(current_state);
+            
+            // Backtrack to get the full path.
+            while (parent_map.find(current_state) != parent_map.end()) {
+                current_state = parent_map.at(current_state);
+                product_path_.push_back(current_state);
+            }
+            reverse(product_path_.begin(), product_path_.end());
+            save_paths();
+            return product_path_;
+        }
+
+        // Explore successors.
+        for (const auto& next_state : product_transitions_[current_state]) {
+            if (visited.find(next_state) == visited.end()) {
+                queue.push_back(next_state);
+                visited.insert(next_state);
+                parent_map.emplace(next_state, current_state);
+            }
+        }
+    }
+
+    // No solution found.
+    return vector<ProductState>();
 }
+
 
 void TEGTask::save_paths() {
     grid_path_.clear();
@@ -237,6 +262,176 @@ vector<GridState> TEGTask::get_grid_path() const {
     return grid_path_;
 }
 
-vector<int> TEGTask::get_dfa_path() const {
+vector<size_t> TEGTask::get_dfa_path() const {
     return dfa_path_;
 }
+
+void TEGTask::print_product_transitions() {
+    cout << "Product Transitions:" << endl;
+    for (const auto& transition_entry : product_transitions_) {
+        const ProductState& source_state = transition_entry.first;
+        cout << source_state << " -> "; 
+        const auto& target_states = transition_entry.second;
+        for (const auto& target_state : target_states) {
+            cout << target_state << ", ";
+        }
+        cout << endl;
+    }
+}
+
+void TEGTask::print_product_path() const {
+    cout << "Product Path:" << endl;
+    if (!product_path_.empty()) {
+        cout << product_path_.front();
+        for (auto it = next(product_path_.begin()); it != product_path_.end(); ++it) {
+            cout << " -> " << *it;
+        }
+    }
+    cout << endl;
+}
+
+void TEGTask::print_grid_path() const {
+    cout << "Grid Path:" << endl;
+    if (!grid_path_.empty()) {
+        cout << grid_path_.front();
+        for (auto it = next(grid_path_.begin()); it != grid_path_.end(); ++it) {
+            cout << " -> " << *it;
+        }
+    }
+    cout << endl;
+}
+
+void TEGTask::print_dfa_path() const {
+    cout << "DFA Path:" << endl;
+    if (!dfa_path_.empty()) {
+        cout << dfa_path_.front();
+        for (auto it = next(dfa_path_.begin()); it != dfa_path_.end(); ++it) {
+            cout << " -> " << *it;
+        }
+    }
+    cout << endl;
+}
+
+void TEGTask::visualize_path() {
+
+    const int WINDOW_WIDTH = 800;
+    const int WINDOW_HEIGHT = 800;
+    const int GRID_SIZE = grid_domain_.R();
+
+    // Create an SFML window
+    sf::RenderWindow window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "Grid Path Visualization");
+
+    // Create an off-screen RenderTexture
+    sf::RenderTexture renderTexture;
+    if (!renderTexture.create(WINDOW_WIDTH, WINDOW_HEIGHT)) {
+        cerr << "ERROR: cannot render a texture" << endl;
+        return;
+    }
+
+    // Calculate cell size based on window size and grid dimensions
+    float cellWidth = WINDOW_WIDTH / static_cast<float>(GRID_SIZE);
+    float cellHeight = WINDOW_HEIGHT / static_cast<float>(GRID_SIZE);
+
+    // Set up font and text for "start" label
+    sf::Font font;
+    // You'll need to load a font file for this. Place a font file (e.g., "arial.ttf") in your project directory.
+    if (!font.loadFromFile("font/Lato-Bold.ttf")) {
+        cerr << "ERROR: no font file was found" << endl;
+        return; // handle error
+    }
+    sf::Text startText("s", font, cellWidth * 0.8); // Adjust the font size according to your needs.
+    startText.setFillColor(sf::Color::Black);
+
+
+    // Clear the renderTexture
+    renderTexture.clear(sf::Color::White);
+
+    // Draw the grid and obstacles to renderTexture
+    for (int i = 0; i < GRID_SIZE; ++i) {
+        for (int j = 0; j < GRID_SIZE; ++j) {
+            sf::RectangleShape cell(sf::Vector2f(cellWidth, cellHeight));
+            cell.setPosition(j * cellWidth, i * cellHeight);
+            cell.setOutlineColor(sf::Color::Black);
+            cell.setOutlineThickness(1.0f);
+
+            GridState curr_state(i, j);
+
+            if (grid_domain_.is_obstacle(curr_state)) {
+                cell.setFillColor(sf::Color::Black);
+            } else {
+                cell.setFillColor(sf::Color::White);
+            }
+            renderTexture.draw(cell);
+        }
+    }
+
+    // Draw the path to renderTexture
+    for (size_t i = 0; i < grid_path_.size(); ++i) {
+        const auto& state = grid_path_[i];
+        sf::RectangleShape pathCell(sf::Vector2f(cellWidth, cellHeight));
+        pathCell.setPosition(state.y() * cellWidth, state.x() * cellHeight);
+        pathCell.setFillColor(sf::Color::Blue);
+        if (i == 0) { // This is the start cell
+            pathCell.setFillColor(sf::Color::Green);
+        }
+        renderTexture.draw(pathCell);
+
+        if (i == 0) {
+            // Position and draw the "start" label
+            startText.setPosition((state.y() + 0.3) * cellWidth,
+                                  (state.x() - 0.2) * cellHeight);
+            renderTexture.draw(startText);
+        }
+    }
+
+    // Draw the label-color mapping
+    auto labelToColorMapping = formula_.get_ap_mapping();
+    for (const auto& pair : labelToColorMapping) {
+        const std::string& label = pair.first;
+        for (const auto& gridState : pair.second) {
+            sf::RectangleShape labelCell(sf::Vector2f(cellWidth, cellHeight));
+            labelCell.setPosition(gridState.y() * cellWidth, gridState.x() * cellHeight);
+            
+            if (label == "g") {
+                labelCell.setFillColor(sf::Color::Cyan);
+            } else if (label == "c") {
+                labelCell.setFillColor(sf::Color::Yellow);
+            } else if (label == "h") {
+                labelCell.setFillColor(sf::Color::Red);
+            }// Add more else-if conditions if want to have more labels
+
+            renderTexture.draw(labelCell);
+
+            sf::Text labelText(label, font, cellWidth * 0.8);
+            labelText.setFillColor(sf::Color::Black);
+            labelText.setPosition((gridState.y() + 0.3) * cellWidth,
+                                  (gridState.x() - 0.2) * cellHeight);
+            renderTexture.draw(labelText);
+        }
+    }
+
+
+    // Finalize the drawing to the renderTexture
+    renderTexture.display();
+
+    // Save the contents of renderTexture to an image
+    sf::Image screenshot = renderTexture.getTexture().copyToImage();
+    screenshot.saveToFile(filename_ + "path.png");
+
+    // Draw the contents of the renderTexture to the main window for visualization
+    sf::Sprite sprite(renderTexture.getTexture());
+    window.draw(sprite);
+    window.display();
+
+    // Finally, run the event loop to handle window interactions.
+    while (window.isOpen()) {
+        sf::Event event;
+        while (window.pollEvent(event)) {
+            if (event.type == sf::Event::Closed) {
+                window.close();
+            }
+        }
+    }
+}
+
+

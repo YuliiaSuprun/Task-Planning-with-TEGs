@@ -19,9 +19,7 @@ public:
     const vector<vector<bool>>& get_obstacle_matrix() const { return obstacle_matrix_; }
     const vector<GridAction>& get_actions() const { return actions_; }
 
-
-
-    
+    bool is_obstacle(const GridState& state) const;
     bool is_valid_state(const GridState& state) const;
     bool is_valid_transition(const GridState& s1, const GridState& action, const GridState& s2) const;
     const vector<vector<bool>>& getObstacleMatrix() const { return obstacle_matrix_; }
