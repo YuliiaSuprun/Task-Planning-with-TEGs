@@ -28,11 +28,12 @@ public:
     vector<ProductState> solve();
     vector<GridState> get_grid_path() const;
     vector<size_t> get_dfa_path() const;
+    map<string, set<GridState>> get_ap_mapping() const;
+    string get_filename() const;
 
     void print_product_path() const;
     void print_grid_path() const;
     void print_dfa_path() const;
-    void visualize_path();
 
 private:
     set<string> atomic_props(const GridState& grid_state);

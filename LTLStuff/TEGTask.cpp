@@ -5,7 +5,6 @@
 #include <sstream>
 #include <iostream>
 #include <graphviz/gvc.h>
-#include <SFML/Graphics.hpp>
 
 TEGTask::TEGTask(const LTLFormula& formula,
                 const GridWorldDomain& grid_domain,  
@@ -312,126 +311,11 @@ void TEGTask::print_dfa_path() const {
     cout << endl;
 }
 
-void TEGTask::visualize_path() {
-
-    const int WINDOW_WIDTH = 800;
-    const int WINDOW_HEIGHT = 800;
-    const int GRID_SIZE = grid_domain_.R();
-
-    // Create an SFML window
-    sf::RenderWindow window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "Grid Path Visualization");
-
-    // Create an off-screen RenderTexture
-    sf::RenderTexture renderTexture;
-    if (!renderTexture.create(WINDOW_WIDTH, WINDOW_HEIGHT)) {
-        cerr << "ERROR: cannot render a texture" << endl;
-        return;
-    }
-
-    // Calculate cell size based on window size and grid dimensions
-    float cellWidth = WINDOW_WIDTH / static_cast<float>(GRID_SIZE);
-    float cellHeight = WINDOW_HEIGHT / static_cast<float>(GRID_SIZE);
-
-    // Set up font and text for "start" label
-    sf::Font font;
-    // You'll need to load a font file for this. Place a font file (e.g., "arial.ttf") in your project directory.
-    if (!font.loadFromFile("font/Lato-Bold.ttf")) {
-        cerr << "ERROR: no font file was found" << endl;
-        return; // handle error
-    }
-    sf::Text startText("s", font, cellWidth * 0.8); // Adjust the font size according to your needs.
-    startText.setFillColor(sf::Color::Black);
-
-
-    // Clear the renderTexture
-    renderTexture.clear(sf::Color::White);
-
-    // Draw the grid and obstacles to renderTexture
-    for (int i = 0; i < GRID_SIZE; ++i) {
-        for (int j = 0; j < GRID_SIZE; ++j) {
-            sf::RectangleShape cell(sf::Vector2f(cellWidth, cellHeight));
-            cell.setPosition(j * cellWidth, i * cellHeight);
-            cell.setOutlineColor(sf::Color::Black);
-            cell.setOutlineThickness(1.0f);
-
-            GridState curr_state(i, j);
-
-            if (grid_domain_.is_obstacle(curr_state)) {
-                cell.setFillColor(sf::Color::Black);
-            } else {
-                cell.setFillColor(sf::Color::White);
-            }
-            renderTexture.draw(cell);
-        }
-    }
-
-    // Draw the path to renderTexture
-    for (size_t i = 0; i < grid_path_.size(); ++i) {
-        const auto& state = grid_path_[i];
-        sf::RectangleShape pathCell(sf::Vector2f(cellWidth, cellHeight));
-        pathCell.setPosition(state.y() * cellWidth, state.x() * cellHeight);
-        pathCell.setFillColor(sf::Color::Blue);
-        if (i == 0) { // This is the start cell
-            pathCell.setFillColor(sf::Color::Green);
-        }
-        renderTexture.draw(pathCell);
-
-        if (i == 0) {
-            // Position and draw the "start" label
-            startText.setPosition((state.y() + 0.3) * cellWidth,
-                                  (state.x() - 0.2) * cellHeight);
-            renderTexture.draw(startText);
-        }
-    }
-
-    // Draw the label-color mapping
-    auto labelToColorMapping = formula_.get_ap_mapping();
-    for (const auto& pair : labelToColorMapping) {
-        const std::string& label = pair.first;
-        for (const auto& gridState : pair.second) {
-            sf::RectangleShape labelCell(sf::Vector2f(cellWidth, cellHeight));
-            labelCell.setPosition(gridState.y() * cellWidth, gridState.x() * cellHeight);
-            
-            if (label == "g") {
-                labelCell.setFillColor(sf::Color::Cyan);
-            } else if (label == "c") {
-                labelCell.setFillColor(sf::Color::Yellow);
-            } else if (label == "h") {
-                labelCell.setFillColor(sf::Color::Red);
-            }// Add more else-if conditions if want to have more labels
-
-            renderTexture.draw(labelCell);
-
-            sf::Text labelText(label, font, cellWidth * 0.8);
-            labelText.setFillColor(sf::Color::Black);
-            labelText.setPosition((gridState.y() + 0.3) * cellWidth,
-                                  (gridState.x() - 0.2) * cellHeight);
-            renderTexture.draw(labelText);
-        }
-    }
-
-
-    // Finalize the drawing to the renderTexture
-    renderTexture.display();
-
-    // Save the contents of renderTexture to an image
-    sf::Image screenshot = renderTexture.getTexture().copyToImage();
-    screenshot.saveToFile(filename_ + "path.png");
-
-    // Draw the contents of the renderTexture to the main window for visualization
-    sf::Sprite sprite(renderTexture.getTexture());
-    window.draw(sprite);
-    window.display();
-
-    // Finally, run the event loop to handle window interactions.
-    while (window.isOpen()) {
-        sf::Event event;
-        while (window.pollEvent(event)) {
-            if (event.type == sf::Event::Closed) {
-                window.close();
-            }
-        }
-    }
+map<string, set<GridState>> TEGTask::get_ap_mapping() const {
+    return formula_.get_ap_mapping();
 }
 
+string TEGTask::get_filename() const {
+    return filename_;
+}
 

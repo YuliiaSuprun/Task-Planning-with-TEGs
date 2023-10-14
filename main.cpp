@@ -6,6 +6,7 @@
 #include <utility>
 #include "GridState.h"
 #include "GridWorldDomain.h"
+#include "GridWorldPlotter.h"
 #include "LTLFormula.h"
 // #include "utility_funcs.h"
 #include "TEGTask.h"
@@ -51,7 +52,8 @@ int main() {
             task.print_product_path();
             task.print_grid_path();
             task.print_dfa_path();
-            task.visualize_path();
+            GridWorldPlotter plotter(domain);
+            plotter.visualize_path(task);
         } else {
             cout << "No solution found for task_id=" << task_id << endl;
         }
