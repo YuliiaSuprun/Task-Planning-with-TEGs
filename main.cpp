@@ -8,7 +8,7 @@
 #include "GridWorldDomain.h"
 #include "GridWorldPlotter.h"
 #include "LTLFormula.h"
-// #include "utility_funcs.h"
+
 #include "TEGTask.h"
 
 using namespace std;
@@ -19,15 +19,13 @@ int main() {
     size_t R = 20 * scale + 1;
     size_t C = 20 * scale + 1;
 
-    // Create the obstacle matrix.
-    // vector<vector<bool>> obstacle_matrix = create_border_obstacle_matrix(R, C); 
-
     GridWorldDomain domain(R, C);
+    domain.create_border_obstacle_matrix();
 
     // Define default locations for atomic propositions
     GridState goal(19, 19);
-    GridState checkpoint(10, 10);
-    GridState hazard(9, 9);
+    GridState checkpoint(9, 10);
+    GridState hazard(9, 8);
     GridState start_grid_state(0, 0);
 
     vector<LTLFormula> ltl_formula_list = {
@@ -35,6 +33,7 @@ int main() {
     {"(F g) & (F c)", {{"g", set<GridState>{goal}}, {"c", set<GridState>{checkpoint}}}},
     {"(G (!h)) & (F d)", {{"g", set<GridState>{goal}}, {"h", set<GridState>{hazard}}}},
     {"G (!h) & F c & (G !g U c) & (c -> F g)", {{"g", set<GridState>{goal}}, {"h", set<GridState>{hazard}}, {"c", set<GridState>{checkpoint}}}}};
+
 
     cout << ltl_formula_list.at(0).get_formula() << endl;
 

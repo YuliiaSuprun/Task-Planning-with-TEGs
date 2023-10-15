@@ -2,6 +2,7 @@
 #define GRID_WORLD_DOMAIN_H
 
 #include <vector>
+#include <set>
 #include "GridState.h"
 #include "GridAction.h"
 
@@ -18,15 +19,24 @@ public:
     size_t C() const { return C_; }
     const vector<vector<bool>>& get_obstacle_matrix() const { return obstacle_matrix_; }
     const vector<GridAction>& get_actions() const { return actions_; }
+    set<GridState> get_obstacle_set() const;
+
 
     bool is_obstacle(const GridState& state) const;
     bool is_valid_state(const GridState& state) const;
     bool is_valid_transition(const GridState& s1, const GridState& action, const GridState& s2) const;
-    const vector<vector<bool>>& getObstacleMatrix() const { return obstacle_matrix_; }
+
+    // Functions for creating obstacle matrices.
+    void add_rectangle_obstacle(double rmin, double rmax, double cmin, double cmax);
+    void create_empty_obstacle_matrix();
+    void create_border_obstacle_matrix();
+    void create_corner_obstacle_matrix();
+    void create_blocks_obstacle_matrix();
+    void create_corridor_obstacle_matrix();
+    void create_random_obstacle_matrix(double density);
 
 private:
     void initializeDefaultActions();
-    void initializeDefaultObstacleMatrix();
 
     size_t R_;
     size_t C_;
