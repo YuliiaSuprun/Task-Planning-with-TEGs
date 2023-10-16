@@ -31,6 +31,8 @@ TEGTask::TEGTask(const LTLFormula& formula,
         spot::formula prop_formula = spot::formula::ap(prop);
         bdd_dict_->register_proposition(prop_formula, nullptr);
     }
+    // Print the "proposition to bdd" mapping.
+    // bdd_dict_->dump(std::cout) << "---\n";
 
     // Compute the DFA corresponding to the given LTL formula.
     dfa_ = convert_to_dfa(formula_);
@@ -53,7 +55,7 @@ shared_ptr<spot::twa_graph> TEGTask::convert_to_dfa(const LTLFormula& formula) {
         return nullptr;
     }
     // Create a translator instance. 
-    spot::translator trans;
+    spot::translator trans(bdd_dict_);
 
     // No guarantee that the automaton will be "Deterministic" 
     // if we use TGBA or BA (Büchi Automaton) options in set_type() 
@@ -130,12 +132,14 @@ void TEGTask::compute_product() {
                 // Any grid transition would be valid.
                 product_transitions_[prod_state].push_back(ProductState(next_grid_state, dfa_state));
             }
-
+            next_grid_state_props.insert(curr_grid_state_props.begin(), curr_grid_state_props.end());
             // BDD operations
             bdd bdd_expr = props_to_bdd(next_grid_state_props);
-
+            // cout << "Resulting bdd_expr: " << bdd_expr << endl;
             for (auto& edge: dfa_->out(dfa_state)) {
-                if (edge.cond == bdd_expr) {
+                // cout << "DFA edge condition: " << edge.cond << endl;
+                if ((edge.cond & bdd_expr) == bdd_expr) {
+                    // cout << "Transition is added!!" << endl;
                     size_t next_dfa_state = edge.dst;
                     product_transitions_[prod_state].push_back(ProductState(next_grid_state, next_dfa_state));
                     break;
@@ -146,7 +150,7 @@ void TEGTask::compute_product() {
         }
     }
 
-    // print_product_transitions();
+    // print_product_transitions(2, 1);
 }
 
 set<string> TEGTask::atomic_props(const GridState& grid_state) {
@@ -242,7 +246,6 @@ vector<ProductState> TEGTask::solve() {
     return vector<ProductState>();
 }
 
-
 void TEGTask::save_paths() {
     grid_path_.clear();
     dfa_path_.clear();
@@ -265,16 +268,20 @@ vector<size_t> TEGTask::get_dfa_path() const {
     return dfa_path_;
 }
 
-void TEGTask::print_product_transitions() {
+void TEGTask::print_product_transitions(int in_dfa_state, int out_dfa_state) {
     cout << "Product Transitions:" << endl;
     for (const auto& transition_entry : product_transitions_) {
         const ProductState& source_state = transition_entry.first;
-        cout << source_state << " -> "; 
-        const auto& target_states = transition_entry.second;
-        for (const auto& target_state : target_states) {
-            cout << target_state << ", ";
+        if (in_dfa_state == -1 || static_cast<size_t>(in_dfa_state) == source_state.get_dfa_state()) {
+            cout << source_state << " -> "; 
+            const auto& target_states = transition_entry.second;
+            for (const auto& target_state : target_states) {
+                if (out_dfa_state == -1 || static_cast<size_t>(out_dfa_state) == target_state.get_dfa_state()) {
+                    cout << target_state << ", ";
+                }
+            }
+            cout << endl;
         }
-        cout << endl;
     }
 }
 

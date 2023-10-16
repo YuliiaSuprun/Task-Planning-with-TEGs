@@ -42,7 +42,7 @@ private:
     void save_dfa(const shared_ptr<spot::twa_graph>& dfa);
     void compute_product();
     void save_paths();
-    void print_product_transitions();
+    void print_product_transitions(int in_dfa_state=-1, int out_dfa_state=-1);
 
     // Class members
     LTLFormula formula_;

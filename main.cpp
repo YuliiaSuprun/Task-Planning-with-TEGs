@@ -20,19 +20,24 @@ int main() {
     size_t C = 20 * scale + 1;
 
     GridWorldDomain domain(R, C);
-    domain.create_border_obstacle_matrix();
+    // Can create domain obstacles.
+    domain.create_random_obstacle_matrix(0.2);
 
     // Define default locations for atomic propositions
     GridState goal(19, 19);
     GridState checkpoint(9, 10);
-    GridState hazard(9, 8);
-    GridState start_grid_state(0, 0);
+    // Creat a set of hazardous locations.
+    set<GridState> hazards;
+    for (size_t i = 5; i < 15; ++i) {
+        hazards.emplace(i, 11);
+    }
 
     vector<LTLFormula> ltl_formula_list = {
-    {"F g", {{"g", set<GridState>{goal}}}},
-    {"(F g) & (F c)", {{"g", set<GridState>{goal}}, {"c", set<GridState>{checkpoint}}}},
-    {"(G (!h)) & (F d)", {{"g", set<GridState>{goal}}, {"h", set<GridState>{hazard}}}},
-    {"G (!h) & F c & (G !g U c) & (c -> F g)", {{"g", set<GridState>{goal}}, {"h", set<GridState>{hazard}}, {"c", set<GridState>{checkpoint}}}}};
+    {"F g", {{"g", set<GridState>{goal}}}}, // Eventually reach a goal.
+    {"(F g) & G(!h)", {{"g", set<GridState>{goal}}, {"h", hazards}}}};
+    // Eventually reach a goal, while avoiding hazards.
+
+    GridState start_grid_state(0, 0);
 
 
     cout << ltl_formula_list.at(0).get_formula() << endl;
