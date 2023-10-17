@@ -21,21 +21,25 @@ int main() {
 
     GridWorldDomain domain(R, C);
     // Can create domain obstacles.
-    domain.create_random_obstacle_matrix(0.2);
+    // domain.create_random_obstacle_matrix(0.2);
 
     // Define default locations for atomic propositions
     GridState goal(19, 19);
-    GridState checkpoint(9, 10);
+    GridState checkpoint(1, 19);
     // Creat a set of hazardous locations.
     set<GridState> hazards;
-    for (size_t i = 5; i < 15; ++i) {
-        hazards.emplace(i, 11);
+    for (size_t i = 5; i < 21; ++i) {
+        hazards.emplace(5, i);
     }
 
     vector<LTLFormula> ltl_formula_list = {
-    {"F g", {{"g", set<GridState>{goal}}}}, // Eventually reach a goal.
-    {"(F g) & G(!h)", {{"g", set<GridState>{goal}}, {"h", hazards}}}};
-    // Eventually reach a goal, while avoiding hazards.
+    // Eventually reach a goal.
+    {"F g", {{"g", set<GridState>{goal}}}},
+    // Reach a goal, while avoiding hazards.
+    {"(F g) & G(!h)", {{"g", set<GridState>{goal}}, {"h", hazards}}},
+    // Reach a checkpoint, reach a goal, while avoiding hazards.
+    {"F c & F g & G(!h)", {{"g", set<GridState>{goal}}, {"h", hazards}, {"c", set<GridState>{checkpoint}}}}};
+
 
     GridState start_grid_state(0, 0);
 

@@ -4,6 +4,7 @@
 #include "GridWorldDomain.h"
 #include "GridState.h"
 #include "ProductState.h"
+#include "ProductTransition.h"
 #include "LTLFormula.h"
 #include <spot/tl/formula.hh>
 #include <spot/twaalgos/dot.hh>
@@ -42,7 +43,9 @@ private:
     void save_dfa(const shared_ptr<spot::twa_graph>& dfa);
     void compute_product();
     void save_paths();
+    // bool transition_is_accepting(ProductTransition transition);
     void print_product_transitions(int in_dfa_state=-1, int out_dfa_state=-1);
+
 
     // Class members
     LTLFormula formula_;
@@ -55,7 +58,7 @@ private:
 
     // Nodes and edges in the product graph.
     vector<ProductState> product_states_;
-    map<ProductState, vector<ProductState>> product_transitions_;
+    map<ProductState, vector<ProductTransition>> product_transitions_;
 
     // Solution path (if found).
     vector<ProductState> product_path_;

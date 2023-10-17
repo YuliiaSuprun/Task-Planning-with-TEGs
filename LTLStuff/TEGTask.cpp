@@ -66,6 +66,10 @@ shared_ptr<spot::twa_graph> TEGTask::convert_to_dfa(const LTLFormula& formula) {
     trans.set_pref(spot::postprocessor::Deterministic); 
     // Translate LTL formula to a DFA using Spot tranlsator.
     auto translated_dfa = trans.run(spot_formula);
+    // The automaton miust use a state-based acceptance.
+    cout << "initially A state-based acceptance is set to: " << translated_dfa->prop_state_acc() << endl;
+    translated_dfa->prop_state_acc(true);
+    cout << "A state-based acceptance is now set to: " << translated_dfa->prop_state_acc() << endl;
     return translated_dfa;
 }
 
@@ -130,18 +134,17 @@ void TEGTask::compute_product() {
             if (curr_grid_state_props == next_grid_state_props) {
                 // DFA state stays the same.
                 // Any grid transition would be valid.
-                product_transitions_[prod_state].push_back(ProductState(next_grid_state, dfa_state));
+                ProductState next_prod_state(next_grid_state, dfa_state);
+                product_transitions_[prod_state].push_back(ProductTransition(bddfalse, prod_state, next_prod_state));
             }
             next_grid_state_props.insert(curr_grid_state_props.begin(), curr_grid_state_props.end());
             // BDD operations
             bdd bdd_expr = props_to_bdd(next_grid_state_props);
-            // cout << "Resulting bdd_expr: " << bdd_expr << endl;
             for (auto& edge: dfa_->out(dfa_state)) {
-                // cout << "DFA edge condition: " << edge.cond << endl;
                 if ((edge.cond & bdd_expr) == bdd_expr) {
-                    // cout << "Transition is added!!" << endl;
                     size_t next_dfa_state = edge.dst;
-                    product_transitions_[prod_state].push_back(ProductState(next_grid_state, next_dfa_state));
+                    ProductState next_prod_state(next_grid_state, next_dfa_state);
+                    product_transitions_[prod_state].push_back(ProductTransition(edge.cond, prod_state, next_prod_state));
                     break;
                 }
             }
@@ -198,51 +201,42 @@ bdd TEGTask::props_to_bdd(const set<string>& props) {
     return result;
 }
 
-
-
 vector<ProductState> TEGTask::solve() {
     product_path_.clear();
 
-    // The BFS queue.
     deque<ProductState> queue;
     queue.emplace_back(start_grid_state_, static_cast<size_t>(dfa_->get_init_state_number()));
 
-    // Keep track of visited states.
     set<ProductState> visited;
     visited.insert(queue.front());
 
-    // To backtrack the path.
     map<ProductState, ProductState> parent_map;
 
     while (!queue.empty()) {
         ProductState current_state = queue.front();
         queue.pop_front();
 
-        // Check if the DFA part of the product state is accepting.
-        if (dfa_->state_is_accepting(current_state.get_dfa_state())) {
-            product_path_.push_back(current_state);
-            
-            // Backtrack to get the full path.
-            while (parent_map.find(current_state) != parent_map.end()) {
-                current_state = parent_map.at(current_state);
-                product_path_.push_back(current_state);
-            }
-            reverse(product_path_.begin(), product_path_.end());
-            save_paths();
-            return product_path_;
-        }
+        for (const auto& transition : product_transitions_[current_state]) {
+            // check if the transition from `current_state` to `next_state` is accepting.
+            ProductState next_state = transition.out_state();
+            if (dfa_->state_is_accepting(next_state.get_dfa_state())) {
+                product_path_.push_back(next_state);
 
-        // Explore successors.
-        for (const auto& next_state : product_transitions_[current_state]) {
-            if (visited.find(next_state) == visited.end()) {
+                // Backtrack to get the full path.
+                while (parent_map.find(current_state) != parent_map.end()) {
+                    product_path_.push_back(current_state);
+                    current_state = parent_map.at(current_state);
+                }
+                reverse(product_path_.begin(), product_path_.end());
+                save_paths();
+                return product_path_;
+            } else if (visited.find(next_state) == visited.end()) {
                 queue.push_back(next_state);
                 visited.insert(next_state);
                 parent_map.emplace(next_state, current_state);
             }
         }
     }
-
-    // No solution found.
     return vector<ProductState>();
 }
 
@@ -274,8 +268,9 @@ void TEGTask::print_product_transitions(int in_dfa_state, int out_dfa_state) {
         const ProductState& source_state = transition_entry.first;
         if (in_dfa_state == -1 || static_cast<size_t>(in_dfa_state) == source_state.get_dfa_state()) {
             cout << source_state << " -> "; 
-            const auto& target_states = transition_entry.second;
-            for (const auto& target_state : target_states) {
+            const auto& transitions = transition_entry.second;
+            for (const auto& transition : transitions) {
+                ProductState target_state = transition.out_state();
                 if (out_dfa_state == -1 || static_cast<size_t>(out_dfa_state) == target_state.get_dfa_state()) {
                     cout << target_state << ", ";
                 }
