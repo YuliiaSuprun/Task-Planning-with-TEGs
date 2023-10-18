@@ -65,3 +65,26 @@ Upon running, the program attempts to find paths that satisfy each LTLf formula 
 * **GridState.h**, **GridWorldDomain.h**, **GridWorldPlotter.h**: Define the grid-world domain, states, and visualization methods respectively.
 * **LTLFormula.h**: Provides functionality to handle and parse LTLf formulas.
 * **TEGTask.h**: Handles tasks defined by LTLf formulas and attempts to solve them.
+
+## TEGTask class
+
+The TEGTask class provides a mechanism to compute the product of a Deterministic Finite Automaton (DFA) generated from an LTL (Linear Temporal Logic) formula and a given GridWorldDomain. The main purpose is to find a path in the grid world that satisfies the LTL formula.
+
+### Key Features:
+* **Initialization**: The constructor initializes the task with the LTL formula, the grid domain, the starting state in the grid world, and a task identifier. It checks if the starting state is valid, creates a DFA for the LTL formula, and computes the product of the DFA with the GridWorldDomain.
+
+* **DFA Conversion**: The method ```convert_to_dfa()``` converts an LTL formula into a DFA using the Spot library.
+
+* **DFA Saving**: The ```save_dfa()``` method saves the DFA in both DOT and PNG formats. It uses the Graphviz library to render the DFA.
+
+* **Product Computation**: The ```compute_product()``` method computes the product of the DFA and the GridWorldDomain. It generates product states based on valid transitions in both the DFA and the GridWorldDomain.
+  
+* **Atomic Propositions**: The ```method atomic_props()``` retrieves the atomic propositions that hold true for a given grid state.
+
+* **BDD Representation**: The ```props_to_bdd()``` method returns the BDD (Binary Decision Diagram) representation of the logical conjunction of the atomic propositions.
+
+* **Path Solver**: The ```solve()``` method finds a path in the product automaton that satisfies the acceptance condition of the DFA. If found, it backtracks to create the complete path and saves it.
+
+* **Path Retrieval**: ```get_grid_path()``` and ```get_dfa_path()``` methods retrieve the path in the grid world and the DFA, respectively.
+
+* **DFA Printing**: The ```print_dfa()``` method prints meta-information about the DFA, including acceptance conditions, number of states, and edges.
