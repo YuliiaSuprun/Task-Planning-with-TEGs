@@ -4,10 +4,10 @@ digraph "" {
   labelloc="t"
   node [shape="circle"]
   I [label="", style=invis, width=0]
-  I -> 1
-  0 [label="0", peripheries=2]
-  0 -> 0 [label="!h"]
-  1 [label="1"]
-  1 -> 0 [label="g & !h"]
-  1 -> 1 [label="!g & !h"]
+  I -> 0
+  0 [label="0"]
+  0 -> 0 [label="!g & !h"]
+  0 -> 1 [label="g & !h"]
+  1 [label="1", peripheries=2]
+  1 -> 1 [label="!h"]
 }

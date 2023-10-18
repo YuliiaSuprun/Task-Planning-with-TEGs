@@ -81,7 +81,7 @@ void GridWorldPlotter::visualize_path(const TEGTask& task) {
             
             if (label == "g") {
                 labelCell.setFillColor(sf::Color::Cyan);
-            } else if (label == "c") {
+            } else if (!label.empty() && label.at(0) == 'c') {
                 labelCell.setFillColor(sf::Color::Yellow);
             } else if (label == "h") {
                 labelCell.setFillColor(sf::Color::Red);

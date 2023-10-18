@@ -36,6 +36,7 @@ TEGTask::TEGTask(const LTLFormula& formula,
 
     // Compute the DFA corresponding to the given LTL formula.
     dfa_ = convert_to_dfa(formula_);
+    print_dfa();
     save_dfa(dfa_);
     // Compute the product graph of DFA and GridWorldDomain.
     compute_product();
@@ -57,19 +58,19 @@ shared_ptr<spot::twa_graph> TEGTask::convert_to_dfa(const LTLFormula& formula) {
     // Create a translator instance. 
     spot::translator trans(bdd_dict_);
 
-    // No guarantee that the automaton will be "Deterministic" 
-    // if we use TGBA or BA (Büchi Automaton) options in set_type() 
-    // We must use "Generic" option if we absolutely want determinism!
+    // Set a type to BA (Büchi Automaton).
     trans.set_type(spot::postprocessor::Generic);
-    // Small and Deterministic are exclusive choices for set_pref
-    // indicate whether a smaller non-deterministic automaton should be preferred over a deterministic automaton
+    // Small (default) and Deterministic are exclusive choices for set_pref().
+    // Indicate whether a smaller non-deterministic automaton should be
+    // preferred over a deterministic automaton (no guarantees tho).
     trans.set_pref(spot::postprocessor::Deterministic); 
+    // The automaton must use a state-based acceptance.
+    trans.set_pref(spot::postprocessor::SBAcc);
     // Translate LTL formula to a DFA using Spot tranlsator.
-    auto translated_dfa = trans.run(spot_formula);
-    // The automaton miust use a state-based acceptance.
-    cout << "initially A state-based acceptance is set to: " << translated_dfa->prop_state_acc() << endl;
-    translated_dfa->prop_state_acc(true);
-    cout << "A state-based acceptance is now set to: " << translated_dfa->prop_state_acc() << endl;
+    spot::twa_graph_ptr translated_dfa = trans.run(spot_formula);
+    
+    // translated_dfa->prop_state_acc(true);
+    // cout << "A state-based acceptance is now set to: " << translated_dfa->prop_state_acc() << endl;
     return translated_dfa;
 }
 
@@ -141,7 +142,9 @@ void TEGTask::compute_product() {
             // BDD operations
             bdd bdd_expr = props_to_bdd(next_grid_state_props);
             for (auto& edge: dfa_->out(dfa_state)) {
-                if ((edge.cond & bdd_expr) == bdd_expr) {
+
+                // Could also use edge.acc, which is spot::acc_cond::mark_t
+                if ((edge.cond & bdd_expr) == bdd_expr) { 
                     size_t next_dfa_state = edge.dst;
                     ProductState next_prod_state(next_grid_state, next_dfa_state);
                     product_transitions_[prod_state].push_back(ProductTransition(edge.cond, prod_state, next_prod_state));
@@ -204,8 +207,14 @@ bdd TEGTask::props_to_bdd(const set<string>& props) {
 vector<ProductState> TEGTask::solve() {
     product_path_.clear();
 
+    size_t dfa_start_state = dfa_->get_init_state_number();
+    if (dfa_->state_is_accepting(dfa_start_state)) {
+        cerr << "ERROR: DFA has a single state. LTL formula is not descriptive enough." << endl;
+        return vector<ProductState>();
+    }
+
     deque<ProductState> queue;
-    queue.emplace_back(start_grid_state_, static_cast<size_t>(dfa_->get_init_state_number()));
+    queue.emplace_back(start_grid_state_, dfa_start_state);
 
     set<ProductState> visited;
     visited.insert(queue.front());
@@ -260,6 +269,64 @@ vector<GridState> TEGTask::get_grid_path() const {
 
 vector<size_t> TEGTask::get_dfa_path() const {
     return dfa_path_;
+}
+
+void TEGTask::print_dfa() {
+    // We need the dictionary to print the BDDs that label the edges
+    const spot::bdd_dict_ptr& dict = dfa_->get_dict();
+
+    // Some meta-data...
+    cout << "Acceptance: " << dfa_->get_acceptance() << '\n';
+    cout << "Number of sets: " << dfa_->num_sets() << '\n';
+    cout << "Number of states: " << dfa_->num_states() << '\n';
+    cout << "Number of edges: " << dfa_->num_edges() << '\n';
+    cout << "Initial state: " << dfa_->get_init_state_number() << '\n';
+    cout << "Atomic propositions:";
+    for (spot::formula ap: dfa_->ap()) {
+        cout << ' ' << ap << " (=" << dict->varnum(ap) << ')';
+    }
+    cout << '\n';
+
+    // Arbitrary data can be attached to automata, by giving them
+    // a type and a name.  The HOA parser and printer both use the
+    // "automaton-name" to name the automaton.
+    if (auto name = dfa_->get_named_prop<string>("automaton-name")) {
+        cout << "Name: " << *name << '\n';
+    }
+
+    // For the following prop_*() methods, the return value is an
+    // instance of the spot::trival class that can represent
+    // yes/maybe/no.  These properties correspond to bits stored in the
+    // automaton, so they can be queried in constant time.  They are
+    // only set whenever they can be determined at a cheap cost: for
+    // instance an algorithm that always produces deterministic automata
+    // would set the deterministic property on its output.  
+    cout << "Complete: " << dfa_->prop_complete() << '\n';
+    cout << "Deterministic: " << (dfa_->prop_universal()
+                                && dfa_->is_existential()) << '\n';
+    cout << "Unambiguous: " << dfa_->prop_unambiguous() << '\n';
+    cout << "State-Based Acc: " << dfa_->prop_state_acc() << '\n';
+    cout << "Terminal: " << dfa_->prop_terminal() << '\n';
+    cout << "Weak: " << dfa_->prop_weak() << '\n';
+    cout << "Inherently Weak: " << dfa_->prop_inherently_weak() << '\n';
+    cout << "Stutter Invariant: " << dfa_->prop_stutter_invariant() << '\n';
+
+    // States are numbered from 0 to n-1
+    unsigned n = dfa_->num_states();
+    for (unsigned s = 0; s < n; ++s) {
+        cout << "State " << s << ":\n";
+
+        // The out(s) method returns a fake container that can be
+        // iterated over as if the contents was the edges going
+        // out of s.  Each of these edges is a quadruplet
+        // (src,dst,cond,acc).  Note that because this returns
+        // a reference, the edge can also be modified.
+        for (auto& t: dfa_->out(s)) {
+            cout << "  edge(" << t.src << " -> " << t.dst << ")\n    label = ";
+            spot::bdd_print_formula(cout, dict, t.cond);
+            cout << "\n    acc sets = " << t.acc << '\n';
+        }
+    }
 }
 
 void TEGTask::print_product_transitions(int in_dfa_state, int out_dfa_state) {

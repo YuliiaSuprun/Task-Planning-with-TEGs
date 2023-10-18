@@ -9,6 +9,7 @@
 #include <spot/tl/formula.hh>
 #include <spot/twaalgos/dot.hh>
 #include <spot/twaalgos/translate.hh>
+#include <spot/twaalgos/totgba.hh>
 #include <spot/twa/bddprint.hh>
 #include <bddx.h>
 #include <map>
@@ -43,7 +44,7 @@ private:
     void save_dfa(const shared_ptr<spot::twa_graph>& dfa);
     void compute_product();
     void save_paths();
-    // bool transition_is_accepting(ProductTransition transition);
+    void print_dfa();
     void print_product_transitions(int in_dfa_state=-1, int out_dfa_state=-1);
 
 
