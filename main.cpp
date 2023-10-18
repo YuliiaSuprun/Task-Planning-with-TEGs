@@ -21,13 +21,13 @@ int main() {
 
     GridWorldDomain domain(R, C);
     // Can create domain obstacles.
-    // domain.create_random_obstacle_matrix(0.2);
+    domain.create_random_obstacle_matrix(0.2);
 
     // Define default locations for atomic propositions
     GridState goal(1, 19);
     GridState checkpoint1(19, 19);
-    GridState checkpoint2(19, 1);
-    GridState checkpoint3(2, 2);
+    GridState checkpoint2(15, 10);
+    GridState checkpoint3(1, 5);
     // Creat a set of hazardous locations.
     set<GridState> hazards;
     for (size_t i = 5; i < 21; ++i) {
@@ -44,8 +44,10 @@ int main() {
     {"F c & F g & G(!h)", {{"g", set<GridState>{goal}}, {"h", hazards}, {"c", set<GridState>{checkpoint1}}}},
     // Reach a checkpoint first, then reach a goal (in this order), while avoiding hazards.
     {"(F c) & G(c -> Fg) & G(!h)", {{"g", set<GridState>{goal}}, {"h", hazards}, {"c", set<GridState>{checkpoint1}}}},
-    // Reach multiple checkpoints (in specific order), while avoiding hazards.
-    {"(F c1) & G(c1 -> ((F c2) & G(c2 -> Fg))) & G(!h)", {{"g", set<GridState>{goal}}, {"h", hazards}, {"c1", set<GridState>{checkpoint1}}, {"c2", set<GridState>{checkpoint2}}, {"c3", set<GridState>{checkpoint3}}}}
+    // Reach multiple 2 checkpoints and goal (in specific order), while avoiding hazards.
+    {"(F c1) & G(c1 -> ((F c2) & G(c2 -> Fg))) & G(!h)", {{"g", set<GridState>{goal}}, {"h", hazards}, {"c1", set<GridState>{checkpoint1}}, {"c2", set<GridState>{checkpoint2}}}},
+    // Reach multiple 3 checkpoints and goal (in specific order), while avoiding hazards.
+    {"(F c1) & G(c1 -> ((F c2) & G(c2 -> ((F c3) & G(c3 -> Fg))))) & G(!h)", {{"g", set<GridState>{goal}}, {"h", hazards}, {"c1", set<GridState>{checkpoint1}}, {"c2", set<GridState>{checkpoint2}}, {"c3", set<GridState>{checkpoint3}}}}
     };
 
     // Set the starting grid state.
