@@ -20,7 +20,7 @@ This repository contains a C++ implementation of a planner that solves tasks in 
      ```
      brew install sfml
      ```
-4. Configuring the Makefile\
+3. Configuring the Makefile\
    For the provided Makefile to work properly, you should adjust some paths to match the locations of libraries on your system. Here are the lines you should check and potentially modify:
    ```
    CXXFLAGS = ... -I$(HOME)/miniconda3/envs/spotenv/include -I/usr/local/include
@@ -34,6 +34,21 @@ This repository contains a C++ implementation of a planner that solves tasks in 
      The Makefile assumes SFML is installed in /usr/local/lib. If you installed it elsewhere, modify **-L/usr/local/lib** in LDFLAGS to point to the correct location.
 
 Once you've made these adjustments, you should be able to run ```make``` to compile the project.
+
+4. Adjusting the **run.sh** File\
+Before executing your program with run.sh, ensure the script knows where to find the dynamic libraries used by the program.\
+Here's what you need to adjust:
+
+In the run.sh file, there's a line:
+```
+export DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:$HOME/miniconda3/envs/spotenv/lib
+```
+This sets the dynamic linker to search for dynamic libraries in the specified path. Adjust the path $HOME/miniconda3/envs/spotenv/lib if you installed Spot in a different location or using a different conda environment than **spotenv**.\
+After making this adjustment, grant execute permissions to the run.sh script using:
+```
+chmod +x run.sh
+```
+
 ## Usage
 Clean, compile and run the main.cpp file, by following these steps:
 ```
