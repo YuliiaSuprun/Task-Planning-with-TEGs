@@ -1,7 +1,7 @@
 #ifndef GRIDWORLDPLOTTER_H
 #define GRIDWORLDPLOTTER_H
 
-#include "TEGTask.h"
+#include "TEGProblem.h"
 #include "GridWorldDomain.h"
 #include <SFML/Graphics.hpp>
 
@@ -9,7 +9,7 @@ class GridWorldPlotter {
 public:
     GridWorldPlotter(GridWorldDomain grid_domain, int windowWidth=800, int windowHeight=800);
 
-    void visualize_path(const TEGTask& task);
+    void visualize_path(const TEGProblem& task);
 
 private:
 

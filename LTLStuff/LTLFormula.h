@@ -13,6 +13,27 @@
 
 using namespace std;
 
+/*
+Documentation on using SPOT for LTLf formulas: 
+https://spot.lre.epita.fr/tut12.html
+
+General Approach:
+1. Have Spot read the input LTLf formula as if it was LTL.
+2. Rewrite this formula in a way that embeds the semantics of LTLf in LTL.
+First, introduce a new atomic proposition alive that will be true initially,
+but that will eventually become false forever. Then adjust all original LTL
+operators so that they have to be satisfied during the alive part of the word.
+For instance the formula (a U b) & Fc would be transformed into alive & (a U (alive & b)) & F(alive & c) & (alive U G!alive).
+3. Convert the resulting formula into a Büchi automaton
+4. Remove the alive property, after marking as accepting all states with
+an outgoing edge labeled by !alive.
+(Note that since Spot does not actually support state-based acceptance,
+it needs to keep a false self-loop on any accepting state without a successor
+in order to mark it as accepting.)
+5. Interpret the above automaton as finite automaton.
+*/
+
+
 class LTLFormula {
 public:
     LTLFormula(const string& formula, 

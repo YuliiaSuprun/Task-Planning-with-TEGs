@@ -10,7 +10,7 @@
 #include "GridWorldPlotter.h"
 #include "LTLFormula.h"
 
-#include "TEGTask.h"
+#include "TEGProblem.h"
 
 using namespace std;
 
@@ -58,12 +58,12 @@ int main() {
     // Set the starting grid state.
     GridState start_grid_state(0, 0);
 
-    // Iterate over all formulas and solve the TEGTask for each of them.
+    // Iterate over all formulas and solve the TEGProblem for each of them.
     for (size_t task_id = 0; task_id < ltl_formula_list.size(); ++task_id) {
         LTLFormula formula = ltl_formula_list.at(task_id);
         cout << "Solving for task_id=" << task_id << " and formula=" << formula << endl;
 
-        TEGTask task(formula, domain, start_grid_state, task_id);
+        TEGProblem task(formula, domain, start_grid_state, task_id);
 
         auto start = chrono::high_resolution_clock::now();
 

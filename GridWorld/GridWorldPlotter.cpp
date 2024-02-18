@@ -6,7 +6,7 @@ GridWorldPlotter::GridWorldPlotter(GridWorldDomain grid_domain, int windowWidth,
     cell_height_ = WINDOW_HEIGHT / static_cast<float>(grid_size_);
 }
 
-void GridWorldPlotter::visualize_path(const TEGTask& task) {
+void GridWorldPlotter::visualize_path(const TEGProblem& task) {
     // Create an SFML window
     sf::RenderWindow window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "Grid Path Visualization");
 

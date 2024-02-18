@@ -1,4 +1,4 @@
-#include "TEGTask.h"
+#include "TEGProblem.h"
 
 #include <stdexcept>
 #include <fstream>
@@ -9,7 +9,7 @@
 #include <spot/twaalgos/hoa.hh>
 #include <spot/twaalgos/postproc.hh> 
 
-TEGTask::TEGTask(const LTLFormula& formula,
+TEGProblem::TEGProblem(const LTLFormula& formula,
                 const GridWorldDomain& grid_domain,  
                 const GridState& start_grid_state, int task_id)
     : formula_(formula), grid_domain_(grid_domain), 
@@ -56,14 +56,14 @@ TEGTask::TEGTask(const LTLFormula& formula,
     std::cout << "time of calculating the product: " << elapsed_product.count() << " seconds" << std::endl;
 }
 
-TEGTask::~TEGTask() {
+TEGProblem::~TEGProblem() {
     // Unregister all propositions: need for memory management.
     bdd_dict_->unregister_all_my_variables(nullptr);
     // When the reference count drops to zero, the destructor for the spot::bdd_dict will be triggered.
 }
 
 
-shared_ptr<spot::twa_graph> TEGTask::convert_to_dfa(const LTLFormula& formula) {
+shared_ptr<spot::twa_graph> TEGProblem::convert_to_dfa(const LTLFormula& formula) {
     spot::formula spot_formula = formula.get_spot_formula();
     if (spot_formula == nullptr) {
         cerr << "Failed to parse the LTL formula" << endl;
@@ -99,7 +99,7 @@ shared_ptr<spot::twa_graph> TEGTask::convert_to_dfa(const LTLFormula& formula) {
     return translated_dfa;
 }
 
-void TEGTask::save_dfa(const shared_ptr<spot::twa_graph>& dfa) {
+void TEGProblem::save_dfa(const shared_ptr<spot::twa_graph>& dfa) {
 
     string dot_filename = filename_ + ".dot";
     string png_filename = filename_ + ".png";
@@ -126,7 +126,7 @@ void TEGTask::save_dfa(const shared_ptr<spot::twa_graph>& dfa) {
     fclose(file);
 }
 
-void TEGTask::compute_product() {
+void TEGProblem::compute_product() {
     // Clear previous data.
     product_states_.clear();
     product_transitions_.clear();
@@ -187,7 +187,7 @@ void TEGTask::compute_product() {
     // print_product_transitions(2, 1);
 }
 
-set<string> TEGTask::atomic_props(const GridState& grid_state) {
+set<string> TEGProblem::atomic_props(const GridState& grid_state) {
     set<string> props;
 
     // Iterate over the ap_mapping to check which atomic propositions hold true for the grid_state
@@ -207,7 +207,7 @@ set<string> TEGTask::atomic_props(const GridState& grid_state) {
     Return the BDD representation (from the BDD package) of the logical
     conjunction of the atomic propositions (positive and negative).
 */
-bdd TEGTask::props_to_bdd(const set<string>& props) {
+bdd TEGProblem::props_to_bdd(const set<string>& props) {
     // Start with a BDD representing true
     bdd result = bddtrue;
 
@@ -232,7 +232,7 @@ bdd TEGTask::props_to_bdd(const set<string>& props) {
     return result;
 }
 
-vector<ProductState> TEGTask::solve() {
+vector<ProductState> TEGProblem::solve() {
     product_path_.clear();
 
     size_t dfa_start_state = dfa_->get_init_state_number();
@@ -281,7 +281,7 @@ vector<ProductState> TEGTask::solve() {
     return vector<ProductState>();
 }
 
-bdd TEGTask::get_self_edge_cond(size_t dfa_state) {
+bdd TEGProblem::get_self_edge_cond(size_t dfa_state) {
      for (auto& edge: dfa_->out(dfa_state)) {
         // Check if this is a self-edge.
         if (edge.dst == dfa_state) { 
@@ -293,7 +293,7 @@ bdd TEGTask::get_self_edge_cond(size_t dfa_state) {
     return bddfalse;
 }
 
-void TEGTask::save_paths() {
+void TEGProblem::save_paths() {
     grid_path_.clear();
     dfa_path_.clear();
     int prev_dfa_state = -1;
@@ -307,15 +307,15 @@ void TEGTask::save_paths() {
     }
 }
 
-vector<GridState> TEGTask::get_grid_path() const {
+vector<GridState> TEGProblem::get_grid_path() const {
     return grid_path_;
 }
 
-vector<size_t> TEGTask::get_dfa_path() const {
+vector<size_t> TEGProblem::get_dfa_path() const {
     return dfa_path_;
 }
 
-void TEGTask::print_dfa() {
+void TEGProblem::print_dfa() {
     // We need the dictionary to print the BDDs that label the edges
     const spot::bdd_dict_ptr& dict = dfa_->get_dict();
 
@@ -373,7 +373,7 @@ void TEGTask::print_dfa() {
     }
 }
 
-void TEGTask::print_product_transitions(int in_dfa_state, int out_dfa_state) {
+void TEGProblem::print_product_transitions(int in_dfa_state, int out_dfa_state) {
     std::cout << "Product Transitions:" << endl;
     for (const auto& transition_entry : product_transitions_) {
         const ProductState& source_state = transition_entry.first;
@@ -391,7 +391,7 @@ void TEGTask::print_product_transitions(int in_dfa_state, int out_dfa_state) {
     }
 }
 
-void TEGTask::print_product_path() const {
+void TEGProblem::print_product_path() const {
     std::cout << "Product Path:" << endl;
     if (!product_path_.empty()) {
         std::cout << product_path_.front();
@@ -402,7 +402,7 @@ void TEGTask::print_product_path() const {
     std::cout << endl;
 }
 
-void TEGTask::print_grid_path() const {
+void TEGProblem::print_grid_path() const {
     std::cout << "Grid Path:" << endl;
     if (!grid_path_.empty()) {
         std::cout << grid_path_.front();
@@ -413,7 +413,7 @@ void TEGTask::print_grid_path() const {
     std::cout << endl;
 }
 
-void TEGTask::print_dfa_path() const {
+void TEGProblem::print_dfa_path() const {
     std::cout << "DFA Path:" << endl;
     if (!dfa_path_.empty()) {
         std::cout << dfa_path_.front();
@@ -424,11 +424,11 @@ void TEGTask::print_dfa_path() const {
     std::cout << endl;
 }
 
-map<string, set<GridState>> TEGTask::get_ap_mapping() const {
+map<string, set<GridState>> TEGProblem::get_ap_mapping() const {
     return formula_.get_ap_mapping();
 }
 
-string TEGTask::get_filename() const {
+string TEGProblem::get_filename() const {
     return filename_;
 }
 

@@ -20,12 +20,12 @@
 
 using namespace std;
 
-class TEGTask {
+class TEGProblem {
 public:
-    TEGTask(const LTLFormula& formula, const GridWorldDomain& grid_domain,  
+    TEGProblem(const LTLFormula& formula, const GridWorldDomain& grid_domain,  
              const GridState& start_grid_state, int task_id = 0);
 
-    ~TEGTask();
+    ~TEGProblem();
     
     vector<ProductState> solve();
     vector<GridState> get_grid_path() const;
