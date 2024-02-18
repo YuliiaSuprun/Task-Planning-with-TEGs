@@ -10,17 +10,22 @@
 #include <spot/twa/bddprint.hh>
 #include <bddx.h>
 #include "ProductState.h"
+#include "Action.h"
 
 using namespace std;
 
 class ProductTransition {
 public:
-    ProductTransition(bdd condition, const ProductState& in_state, const ProductState& out_state)
-    : condition_(condition), in_state_(in_state), out_state_(out_state) {}
+    ProductTransition(const ProductState& in_state, const ProductState& out_state, bdd edge_cond, Action action)
+    : in_state_(in_state), out_state_(out_state), dfa_edge_cond_(edge_cond), action_(action) {}
 
     // Accessor methods
-    bdd condition() const {
-        return condition_;
+    bdd dfa_edge_condition() const {
+        return dfa_edge_cond_;
+    }
+
+    Action action() const {
+        return action_;
     }
 
     ProductState in_state() const {
@@ -29,6 +34,23 @@ public:
 
     ProductState out_state() const {
         return out_state_;
+    }
+
+    vector<ProductState> path(bool with_end = false) const { 
+
+        if (action_.isSkillAction()) {
+            const SkillAction* skillActionPtr = dynamic_cast<const SkillAction*>(&action_);
+            cout << "Reconstruct a path!!!" << endl;
+            // This is a skill action.
+            return skillActionPtr->reconstructed_path(in_state_.get_dfa_state(), out_state_.get_dfa_state(), with_end);
+        } else {
+            // This is a primitive action. 
+            if (with_end) {
+                return vector<ProductState> {in_state_, out_state_};
+            } else {
+                return vector<ProductState> {in_state_};
+            }
+        }
     }
 
     bool operator==(const ProductTransition& other) const {
@@ -48,13 +70,15 @@ public:
     friend ostream& operator<<(ostream& os, const ProductTransition& ps);
 
 private:
-    bdd condition_; 
+
     ProductState in_state_;
     ProductState out_state_;
+    bdd dfa_edge_cond_; 
+    Action action_;
 };
 
 inline std::ostream& operator<<(std::ostream& os, const ProductTransition& ps) {
-    os << "(" << ps.in_state() << " X [" << ps.condition() << "]) -> " << ps.out_state() << endl;
+    os << "(" << ps.in_state() << " X [" << ps.dfa_edge_condition() << "]) -> " << ps.out_state() << endl;
     return os;
 }
 

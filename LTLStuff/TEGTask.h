@@ -23,7 +23,7 @@ using namespace std;
 class TEGTask {
 public:
     TEGTask(const LTLFormula& formula, const GridWorldDomain& grid_domain,  
-             const GridState& start_grid_state, int task_id = 0);
+             const GridState& start_grid_state, int task_id = 0, bool use_skills=false);
 
     ~TEGTask();
     
@@ -46,6 +46,7 @@ private:
     void save_paths();
     void print_dfa();
     void print_product_transitions(int in_dfa_state=-1, int out_dfa_state=-1);
+    bdd get_self_edge_cond(size_t dfa_state);
 
 
     // Class members
@@ -53,6 +54,7 @@ private:
     GridWorldDomain grid_domain_;
     GridState start_grid_state_;
     int task_id_;
+    bool use_skills_;
 
     // DFA corresponding to LTL formula.
     shared_ptr<spot::twa_graph> dfa_;

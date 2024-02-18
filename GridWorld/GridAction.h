@@ -1,7 +1,9 @@
 #ifndef GRID_ACTION_H
 #define GRID_ACTION_H
 
-class GridAction {
+#include "Action.h"
+
+class GridAction : public Action {
 public:
     GridAction(int deltaX = 0, int deltaY = 0) : deltaX_(deltaX), deltaY_(deltaY) {}
 

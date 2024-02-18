@@ -25,6 +25,10 @@ GridWorldDomain::GridWorldDomain(size_t R, size_t C,
     }
 }
 
+// Define a static map.
+map<GridState, vector<SkillAction>> GridWorldDomain::skill_actions_ = {};
+
+
 bool GridWorldDomain::is_obstacle(const GridState& state) const {
     size_t x = state.x();
     size_t y = state.y();
@@ -55,6 +59,40 @@ void GridWorldDomain::initializeDefaultActions() {
     actions_.push_back(GridAction(-1, 0));
     actions_.push_back(GridAction(-1, 1));
 }
+
+void GridWorldDomain::add_skill_action(GridState state, const SkillAction& action) {
+    // operator[] will automatically insert a new pair with an empty vector
+    // if the key doesn't exist.
+    vector<SkillAction>& actions = skill_actions_[state];
+    // SkillAction must have an equality operator defined.
+    if (find(actions.begin(), actions.end(), action) == actions.end()) {
+        GridWorldDomain::skill_actions_[state].push_back(action);
+    } else {
+        cout << "Warning: Attempted to add a duplicate SkillAction under the same label." << endl;
+    }
+}
+
+void GridWorldDomain::print_all_skill_actions() {
+    cout << "Printing all Skill-Actions" << endl;
+    for (const auto& state_actions_pair : skill_actions_) {
+        const auto& state = state_actions_pair.first;
+        const auto& actions = state_actions_pair.second;
+
+        if (!actions.empty()) {
+            // Print out the labels
+            cout << "Grid State: " << state << endl;
+            cout << "\nActions: \n";
+            
+            // Print out the actions
+            for (const auto& action : actions) {
+                action.print_path();
+                // You might want to print more details about each action here
+            }
+            cout << "-----------\n";
+        }
+    }
+}
+
 
 void GridWorldDomain::create_empty_obstacle_matrix() {
     // Create an empty obstacle matrix.

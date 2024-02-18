@@ -5,7 +5,7 @@ LDFLAGS = -L$(HOME)/miniconda3/envs/spotenv/lib -lspot -lbddx -lgvc -lcgraph -L/
 SRC = main.cpp LTLStuff/TEGTask.cpp GridWorld/GridWorldDomain.cpp GridWorld/GridWorldPlotter.cpp
 OBJ = $(SRC:.cpp=.o)
 DEP = $(OBJ:.o=.d)
-HEADERS = LTLFormula.h GridState.h GridAction.h GridWorldDomain.h TEGTask.h ProductState.h GridWorldPlotter.h 
+HEADERS = LTLFormula.h GridState.h GridAction.h GridWorldDomain.h TEGTask.h ProductState.h GridWorldPlotter.h Action.h SkillAction.h
 TARGET = main
 
 all: $(TARGET)

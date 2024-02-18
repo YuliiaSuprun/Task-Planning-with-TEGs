@@ -33,7 +33,7 @@ public:
         return false;
     }
 
-    friend ostream& operator<<(ostream& os, const ProductState& ps);
+    friend std::ostream& operator<<(std::ostream& os, const ProductState& ps);
 
 private:
     GridState grid_state_;

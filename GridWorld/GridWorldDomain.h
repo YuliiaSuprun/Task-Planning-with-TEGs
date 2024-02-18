@@ -3,8 +3,11 @@
 
 #include <vector>
 #include <set>
+#include <algorithm> 
+#include <map>
 #include "GridState.h"
 #include "GridAction.h"
+#include "SkillAction.h"
 
 using namespace std;
 
@@ -19,12 +22,17 @@ public:
     size_t C() const { return C_; }
     const vector<vector<bool>>& get_obstacle_matrix() const { return obstacle_matrix_; }
     const vector<GridAction>& get_actions() const { return actions_; }
+    const vector<SkillAction>& get_skill_actions(GridState state) { return skill_actions_[state]; }
     set<GridState> get_obstacle_set() const;
 
 
     bool is_obstacle(const GridState& state) const;
     bool is_valid_state(const GridState& state) const;
     bool is_valid_transition(const GridState& s1, const GridState& action, const GridState& s2) const;
+
+    void add_skill_action(GridState state, const SkillAction& action);
+
+    void print_all_skill_actions();
 
     // Functions for creating obstacle matrices.
     void add_rectangle_obstacle(double rmin, double rmax, double cmin, double cmax);
@@ -41,6 +49,8 @@ private:
     size_t R_;
     size_t C_;
     vector<GridAction> actions_;
+    static map<GridState, vector<SkillAction>> skill_actions_;
+
     vector<vector<bool>> obstacle_matrix_;
 };
 
