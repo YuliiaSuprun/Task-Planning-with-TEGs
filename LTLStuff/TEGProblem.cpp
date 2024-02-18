@@ -9,27 +9,23 @@
 #include <spot/twaalgos/hoa.hh>
 #include <spot/twaalgos/postproc.hh> 
 
-TEGProblem::TEGProblem(const LTLFormula& formula,
-                const GridWorldDomain& grid_domain,  
-                const GridState& start_grid_state, int problem_id)
-    : formula_(formula), grid_domain_(grid_domain), 
-      start_grid_state_(start_grid_state), problem_id_(problem_id) { 
+TEGProblem::TEGProblem(const string formula_str,
+            const map<string, set<GridState>> ap_mapping,
+            const GridWorldDomain& grid_domain,
+            const GridState& start_grid_state,
+            int problem_id)
+    : grid_domain_(grid_domain), start_grid_state_(start_grid_state), problem_id_(problem_id) { 
 
     // Check if the start state is valid.
     if (!grid_domain_.is_valid_state(start_grid_state_)) {
         cerr << "ERROR: Invalid start state in the GridWorldDomain" << endl;
     }
-    std::cout << "Creating dfa for problem_id=" << problem_id_ << endl;
-    // Get a name for output files.
-    stringstream ss;
-    ss << "dfa" << problem_id_;
-    filename_ = ss.str();
 
     // Create a bdd dict.
     bdd_dict_ = make_shared<spot::bdd_dict>();
 
     // Register all the propositions you need here.
-    for (const auto& prop_pair : formula_.get_ap_mapping()) {
+    for (const auto& prop_pair : ap_mapping) {
         string prop = prop_pair.first;
         spot::formula prop_formula = spot::formula::ap(prop);
         bdd_dict_->register_proposition(prop_formula, nullptr);
@@ -37,7 +33,16 @@ TEGProblem::TEGProblem(const LTLFormula& formula,
     // Print the "proposition to bdd" mapping.
     // bdd_dict_->dump(std::std::cout) << "---\n";
 
+    std::cout << "Creating dfa for problem_id=" << problem_id_ << endl;
+    // Get a name for output files.
+    stringstream ss;
+    ss << "dfa" << problem_id_;
+    filename_ = ss.str();
+
     auto start1 = chrono::high_resolution_clock::now();
+
+    // Convert to formula_str to LTLFormula object.
+    formula_ = LTLFormula(formula_str, ap_mapping);
 
     // Compute the DFA corresponding to the given LTL formula.
     dfa_ = convert_to_dfa(formula_);

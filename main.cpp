@@ -8,7 +8,6 @@
 #include "GridState.h"
 #include "GridWorldDomain.h"
 #include "GridWorldPlotter.h"
-#include "LTLFormula.h"
 
 #include "TEGProblem.h"
 
@@ -40,7 +39,7 @@ int main() {
     map<string, set<GridState>> ap_mapping {{"g", set<GridState>{goal}}, {"h", hazards}, {"c1", set<GridState>{checkpoint1}}, {"c2", set<GridState>{checkpoint2}}, {"c3", set<GridState>{checkpoint3}}};
 
     // Create a list of LTLf formulas that we want to plan for.
-    vector<LTLFormula> ltl_formula_list = {
+    vector<pair<string, map<string, set<GridState>>>> ltl_formula_list = {
     // Eventually reach a goal.
     {"F g", ap_mapping},
     // Reach a goal, while avoiding hazards.
@@ -56,33 +55,37 @@ int main() {
     };
 
     // Set the starting grid state.
-    GridState start_grid_state(0, 0);
+    GridState start_grid_state(1, 0);
 
     // Iterate over all formulas and solve the TEGProblem for each of them.
-    for (size_t task_id = 0; task_id < ltl_formula_list.size(); ++task_id) {
-        LTLFormula formula = ltl_formula_list.at(task_id);
-        cout << "Solving for task_id=" << task_id << " and formula=" << formula << endl;
+    for (size_t problem_id = 0; problem_id < ltl_formula_list.size(); ++problem_id) {
+        pair<string, map<string, set<GridState>>> formula_pair = ltl_formula_list.at(problem_id);
+        string formula = formula_pair.first;
+        map<string, set<GridState>> ap_mapping = formula_pair.second;
 
-        TEGProblem task(formula, domain, start_grid_state, task_id);
+        cout << "Solving for problem_id=" << problem_id << " and formula=" << formula << endl;
+
+        // Initialize the TEG Problem.
+        TEGProblem problem(formula, ap_mapping, domain, start_grid_state, problem_id);
 
         auto start = chrono::high_resolution_clock::now();
 
-        // Solve the task and get the solution path
-        vector<ProductState> solution_path = task.solve();
+        // Solve the problem and get the solution path
+        vector<ProductState> solution_path = problem.solve();
 
         auto end = chrono::high_resolution_clock::now();
         chrono::duration<double> elapsed = end - start;
         std::cout << "Time of searching for a solution: " << elapsed.count() << " seconds" << std::endl;
     
         if (!solution_path.empty()) {
-            cout << "Solution for task_id=" << task_id << " is:" << endl;
-            task.print_product_path();
-            task.print_grid_path();
-            task.print_dfa_path();
+            cout << "Solution for problem_id=" << problem_id << " is:" << endl;
+            problem.print_product_path();
+            problem.print_grid_path();
+            problem.print_dfa_path();
             GridWorldPlotter plotter(domain);
-            plotter.visualize_path(task);
+            plotter.visualize_path(problem);
         } else {
-            cout << "No solution found for task_id=" << task_id << endl;
+            cout << "No solution found for problem_id=" << problem_id << endl;
         }
     }
 

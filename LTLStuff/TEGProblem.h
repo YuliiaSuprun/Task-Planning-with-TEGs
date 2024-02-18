@@ -22,8 +22,11 @@ using namespace std;
 
 class TEGProblem {
 public:
-    TEGProblem(const LTLFormula& formula, const GridWorldDomain& grid_domain,  
-             const GridState& start_grid_state, int problem_id = 0);
+    TEGProblem(const string formula_str,
+            const map<string, set<GridState>> ap_mapping,
+            const GridWorldDomain& grid_domain,
+            const GridState& start_grid_state,
+            int problem_id = 0);
 
     ~TEGProblem();
     

@@ -39,6 +39,9 @@ public:
     LTLFormula(const string& formula, 
                const map<string, set<GridState>>& ap_mapping)
         : formula_(formula), ap_mapping_(ap_mapping) {}
+    
+    // Default constructor
+    LTLFormula() : formula_(""), ap_mapping_() {}
 
     string get_formula() const { return formula_; }
     map<string, set<GridState>> get_ap_mapping() const { return ap_mapping_; }
