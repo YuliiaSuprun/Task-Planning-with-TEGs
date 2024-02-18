@@ -6,7 +6,7 @@ GridWorldPlotter::GridWorldPlotter(GridWorldDomain grid_domain, int windowWidth,
     cell_height_ = WINDOW_HEIGHT / static_cast<float>(grid_size_);
 }
 
-void GridWorldPlotter::visualize_path(const TEGProblem& task) {
+void GridWorldPlotter::visualize_path(const TEGProblem& problem) {
     // Create an SFML window
     sf::RenderWindow window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "Grid Path Visualization");
 
@@ -50,7 +50,7 @@ void GridWorldPlotter::visualize_path(const TEGProblem& task) {
         }
     }
 
-    auto grid_path = task.get_grid_path();
+    auto grid_path = problem.get_grid_path();
 
     // Draw the path to renderTexture
     for (size_t i = 0; i < grid_path.size(); ++i) {
@@ -72,7 +72,7 @@ void GridWorldPlotter::visualize_path(const TEGProblem& task) {
     }
 
     // Draw the label-color mapping
-    auto labelToColorMapping = task.get_ap_mapping();
+    auto labelToColorMapping = problem.get_ap_mapping();
     for (const auto& pair : labelToColorMapping) {
         const std::string& label = pair.first;
         for (const auto& gridState : pair.second) {
@@ -103,7 +103,7 @@ void GridWorldPlotter::visualize_path(const TEGProblem& task) {
 
     // Save the contents of renderTexture to an image
     sf::Image screenshot = renderTexture.getTexture().copyToImage();
-    screenshot.saveToFile(task.get_filename() + "path.png");
+    screenshot.saveToFile(problem.get_filename() + "path.png");
 
     // Draw the contents of the renderTexture to the main window for visualization
     sf::Sprite sprite(renderTexture.getTexture());

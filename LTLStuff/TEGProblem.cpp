@@ -11,18 +11,18 @@
 
 TEGProblem::TEGProblem(const LTLFormula& formula,
                 const GridWorldDomain& grid_domain,  
-                const GridState& start_grid_state, int task_id)
+                const GridState& start_grid_state, int problem_id)
     : formula_(formula), grid_domain_(grid_domain), 
-      start_grid_state_(start_grid_state), task_id_(task_id) { 
+      start_grid_state_(start_grid_state), problem_id_(problem_id) { 
 
     // Check if the start state is valid.
     if (!grid_domain_.is_valid_state(start_grid_state_)) {
         cerr << "ERROR: Invalid start state in the GridWorldDomain" << endl;
     }
-    std::cout << "Creating dfa for task_id=" << task_id_ << endl;
+    std::cout << "Creating dfa for problem_id=" << problem_id_ << endl;
     // Get a name for output files.
     stringstream ss;
-    ss << "dfa" << task_id_;
+    ss << "dfa" << problem_id_;
     filename_ = ss.str();
 
     // Create a bdd dict.

@@ -23,7 +23,7 @@ using namespace std;
 class TEGProblem {
 public:
     TEGProblem(const LTLFormula& formula, const GridWorldDomain& grid_domain,  
-             const GridState& start_grid_state, int task_id = 0);
+             const GridState& start_grid_state, int problem_id = 0);
 
     ~TEGProblem();
     
@@ -53,7 +53,7 @@ private:
     LTLFormula formula_;
     GridWorldDomain grid_domain_;
     GridState start_grid_state_;
-    int task_id_;
+    int problem_id_;
 
     // DFA corresponding to LTL formula.
     shared_ptr<spot::twa_graph> dfa_;

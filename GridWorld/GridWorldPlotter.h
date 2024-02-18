@@ -9,7 +9,7 @@ class GridWorldPlotter {
 public:
     GridWorldPlotter(GridWorldDomain grid_domain, int windowWidth=800, int windowHeight=800);
 
-    void visualize_path(const TEGProblem& task);
+    void visualize_path(const TEGProblem& problem);
 
 private:
 
