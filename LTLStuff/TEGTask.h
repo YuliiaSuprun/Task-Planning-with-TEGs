@@ -23,7 +23,7 @@ using namespace std;
 class TEGTask {
 public:
     TEGTask(const LTLFormula& formula, const GridWorldDomain& grid_domain,  
-             const GridState& start_grid_state, int task_id = 0, bool use_skills=false);
+             const GridState& start_grid_state, int task_id = 0);
 
     ~TEGTask();
     
@@ -54,7 +54,6 @@ private:
     GridWorldDomain grid_domain_;
     GridState start_grid_state_;
     int task_id_;
-    bool use_skills_;
 
     // DFA corresponding to LTL formula.
     shared_ptr<spot::twa_graph> dfa_;

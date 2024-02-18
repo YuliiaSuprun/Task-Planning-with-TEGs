@@ -6,13 +6,14 @@
 #include <iostream>
 #include <chrono>
 #include <graphviz/gvc.h>
+#include <spot/twaalgos/hoa.hh>
+#include <spot/twaalgos/postproc.hh> 
 
 TEGTask::TEGTask(const LTLFormula& formula,
                 const GridWorldDomain& grid_domain,  
-                const GridState& start_grid_state, int task_id, bool use_skills)
+                const GridState& start_grid_state, int task_id)
     : formula_(formula), grid_domain_(grid_domain), 
-      start_grid_state_(start_grid_state), task_id_(task_id),
-      use_skills_(use_skills) { 
+      start_grid_state_(start_grid_state), task_id_(task_id) { 
 
     // Check if the start state is valid.
     if (!grid_domain_.is_valid_state(start_grid_state_)) {
@@ -45,7 +46,7 @@ TEGTask::TEGTask(const LTLFormula& formula,
     chrono::duration<double> elapsed_dfa = end1 - start1;
     std::cout << "time of calculating the automaton: " << elapsed_dfa.count() << " seconds" << std::endl;
 
-    print_dfa();
+    // print_dfa();
     save_dfa(dfa_);
     auto start2 = chrono::high_resolution_clock::now();
     // Compute the product graph of DFA and GridWorldDomain.
@@ -70,9 +71,8 @@ shared_ptr<spot::twa_graph> TEGTask::convert_to_dfa(const LTLFormula& formula) {
     }
     // Create a translator instance. 
     spot::translator trans(bdd_dict_);
-
     // Set a type to BA (Büchi Automaton).
-    trans.set_type(spot::postprocessor::Generic);
+    trans.set_type(spot::postprocessor::BA);
     // Small (default) and Deterministic are exclusive choices for set_pref().
     // Indicate whether a smaller non-deterministic automaton should be
     // preferred over a deterministic automaton (no guarantees tho).
@@ -81,9 +81,21 @@ shared_ptr<spot::twa_graph> TEGTask::convert_to_dfa(const LTLFormula& formula) {
     trans.set_pref(spot::postprocessor::SBAcc);
     // Translate LTL formula to a DFA using Spot tranlsator.
     spot::twa_graph_ptr translated_dfa = trans.run(spot_formula);
+
+    // Print reachable states in Hanoi Omega Automata format.
+    // std::cout << "Printing  translated_dfa" << std::endl;
+    // spot::print_hoa(std::cout, translated_dfa) << '\n';
+
+    // spot::postprocessor post;
+    // post.set_type(spot::postprocessor::Generic);
+    // post.set_pref(spot::postprocessor::Deterministic);
+    // spot::twa_graph_ptr postprocessed_dfa = post.run(translated_dfa, spot_formula);
+    // std::cout << "Printing  postprocessed_dfa" << std::endl;
+    // spot::print_hoa(std::cout, postprocessed_dfa) << '\n';
     
     // translated_dfa->prop_state_acc(true);
     // std::cout << "A state-based acceptance is now set to: " << translated_dfa->prop_state_acc() << endl;
+
     return translated_dfa;
 }
 
@@ -132,49 +144,12 @@ void TEGTask::compute_product() {
     }
     std::cout << product_states_.size() << " product states were generated" << endl;
 
-    // Add transitions based on "skill" actions in the domain.
-    grid_domain_.print_all_skill_actions();
     // Compute transitions in the product based on valid transitions in both the GridWorld and the DFA.
     for (const auto& prod_state : product_states_) {
         size_t dfa_state = prod_state.get_dfa_state();
         GridState grid_state = prod_state.get_grid_state();
         // This is a current label.
         set<string> curr_grid_state_props = atomic_props(grid_state);
-
-        if (use_skills_) {
-            // Use only the skill actions applicable for the current label.
-            for (const auto& skill_action : grid_domain_.get_skill_actions(grid_state)) {
-                // GridState intermediate_grid_state = skill_action.start_grid_state();
-
-                // std::cout << "SkillAction is considered for computing a product." << endl;
-                // skill_action.print_path();
-                // std::cout << "======================" << endl;
-            
-                GridState next_grid_state = skill_action.dest_grid_state();
-                if (!grid_domain_.is_valid_state(next_grid_state)) {
-                    continue;
-                }
-                // Get the atomic propositions at the next grid world state.
-                set<string> next_grid_state_props = atomic_props(next_grid_state);
-                next_grid_state_props.insert(curr_grid_state_props.begin(), curr_grid_state_props.end());
-                // BDD operations
-                bdd bdd_expr = props_to_bdd(next_grid_state_props);
-                for (auto& edge: dfa_->out(dfa_state)) {
-
-                    // Could also use edge.acc, which is spot::acc_cond::mark_t
-                    if ((edge.cond & bdd_expr) == bdd_expr) { 
-                        size_t next_dfa_state = edge.dst;
-                        ProductState next_prod_state(next_grid_state, next_dfa_state);
-                        product_transitions_[prod_state].push_back(ProductTransition(prod_state, next_prod_state, edge.cond, skill_action));
-                        // std::cout << "Added!!!" << endl;
-                        // std::cout << "======================" << endl;
-                        break;
-                    }
-                }
-                // For garbage collection purposes.
-                bdd_expr = bddfalse;
-            }
-        }
 
         // Add transitions based on "primitive" actions in the domain.
         for (const auto& action : grid_domain_.get_actions()) {
@@ -281,69 +256,16 @@ vector<ProductState> TEGTask::solve() {
         for (const auto& transition : product_transitions_[current_state]) {
             // check if the transition from `current_state` to `next_state` is accepting.
             ProductState next_state = transition.out_state();
-            if (transition.path().size() > 1) {
-                cout << "Adding Skill Action in the map!" << endl;
-            }
             parent_map.emplace(next_state, transition.path());
 
-            // Get the dfa states.
-            size_t current_dfa_state = current_state.get_dfa_state();
+            // Get the next dfa state.
             size_t next_dfa_state = next_state.get_dfa_state();
 
-            // Check if this is not a "skill-action" transition and 
-            // check if the dfa state changed. If so, add the new Skill-Action!
-            if (transition.path().size() == 1 && current_dfa_state != next_dfa_state) {
-                vector<ProductState> cached_path;
-                cached_path.push_back(next_state);
-                ProductState next_state_copy = next_state;
-                // Backtrack to get the full transition path in the grid domain.
-                while (parent_map.find(next_state_copy) != parent_map.end()) {
-                    auto preceding_path = parent_map.at(next_state_copy);
-                    if (preceding_path.front().get_dfa_state() != current_dfa_state) {
-                        // We want to cache only a path from current_dfa_state to next_dfa_state for now.
-                        break;
-                    }
-                    if (preceding_path.size() != 1) {
-                        std::cout << "SkillAction is used in the path!" << endl;
-                        std::cout << "Skill action contains the following path: " << endl;
-                        if (!preceding_path.empty()) {
-                            std::cout << preceding_path.front();
-                            for (auto it = next(preceding_path.begin()); it != preceding_path.end(); ++it) {
-                                std::cout << " -> " << *it;
-                            }
-                        }
-                        std::cout << endl;
-                        reverse(preceding_path.begin(), preceding_path.end());
-                    }
-                    cached_path.insert(cached_path.end(), preceding_path.begin(), preceding_path.end());
-                    next_state_copy = preceding_path.back();
-                }
-                reverse(cached_path.begin(), cached_path.end());
-                // TODO: apply some abstraction to cached path here!!! 
-                if (use_skills_) {
-                    bdd self_edge_cond = get_self_edge_cond(current_dfa_state);
-                    SkillAction new_skill_action (cached_path, self_edge_cond, transition.dfa_edge_condition());
-                    set<string> props = atomic_props(current_state.get_grid_state());
-                    grid_domain_.add_skill_action(cached_path.front().get_grid_state(), new_skill_action);
-                }
-            }
             if (dfa_->state_is_accepting(next_dfa_state)) {
                 product_path_.push_back(next_state);
                 // Backtrack to get the full path.
                 while (parent_map.find(next_state) != parent_map.end()) {
                     auto preceding_path = parent_map.at(next_state);
-                    if (preceding_path.size() != 1) {
-                        std::cout << "SkillAction is used in the path!" << endl;
-                        std::cout << "Skill action contains the following path: " << endl;
-                        if (!preceding_path.empty()) {
-                            std::cout << preceding_path.front();
-                            for (auto it = next(preceding_path.begin()); it != preceding_path.end(); ++it) {
-                                std::cout << " -> " << *it;
-                            }
-                        }
-                        std::cout << endl;
-                        reverse(preceding_path.begin(), preceding_path.end());
-                    }
                     product_path_.insert(product_path_.end(), preceding_path.begin(), preceding_path.end());
                     next_state = preceding_path.back();
                 }

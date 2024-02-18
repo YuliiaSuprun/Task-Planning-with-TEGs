@@ -28,7 +28,6 @@ GridWorldDomain::GridWorldDomain(size_t R, size_t C,
 // Define a static map.
 map<GridState, vector<SkillAction>> GridWorldDomain::skill_actions_ = {};
 
-
 bool GridWorldDomain::is_obstacle(const GridState& state) const {
     size_t x = state.x();
     size_t y = state.y();

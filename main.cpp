@@ -15,8 +15,6 @@
 using namespace std;
 
 int main() {
-    // Easy way to "turn off" the abstract skills.
-    bool use_skills = false;
 
     // GridWorldDomain dimensions.
     double scale = 1; 
@@ -65,7 +63,7 @@ int main() {
         LTLFormula formula = ltl_formula_list.at(task_id);
         cout << "Solving for task_id=" << task_id << " and formula=" << formula << endl;
 
-        TEGTask task(formula, domain, start_grid_state, task_id, use_skills);
+        TEGTask task(formula, domain, start_grid_state, task_id);
 
         auto start = chrono::high_resolution_clock::now();
 
