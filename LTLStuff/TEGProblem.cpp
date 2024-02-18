@@ -238,6 +238,7 @@ bdd TEGProblem::props_to_bdd(const set<string>& props) {
 }
 
 vector<ProductState> TEGProblem::solve() {
+    std::cout << "solve() is called"  << endl;
     product_path_.clear();
 
     size_t dfa_start_state = dfa_->get_init_state_number();
@@ -245,6 +246,9 @@ vector<ProductState> TEGProblem::solve() {
         cerr << "ERROR: DFA has a single state. LTL formula is not descriptive enough." << endl;
         return vector<ProductState>();
     }
+
+    std::cout << "DFA start state="  << dfa_start_state << endl;
+    std::cout << "Grid start state="  << start_grid_state_ << endl;
 
     deque<ProductState> queue;
     queue.emplace_back(start_grid_state_, dfa_start_state);
@@ -255,31 +259,52 @@ vector<ProductState> TEGProblem::solve() {
     map<ProductState, vector<ProductState>> parent_map;
 
     while (!queue.empty()) {
+        std::cout << "======Queue is not empty=====" << endl;
         ProductState current_state = queue.front();
         queue.pop_front();
+
+        std::cout << "curr product state="  << current_state << endl;
 
         for (const auto& transition : product_transitions_[current_state]) {
             // check if the transition from `current_state` to `next_state` is accepting.
             ProductState next_state = transition.out_state();
-            parent_map.emplace(next_state, transition.path());
+            std::cout << "Transition leads to state="  << next_state << endl;
+            // parent_map.emplace(next_state, transition.path());
 
             // Get the next dfa state.
             size_t next_dfa_state = next_state.get_dfa_state();
 
             if (dfa_->state_is_accepting(next_dfa_state)) {
+                std::cout << "Case1: This state is accepting!! next_dfa_state=" << next_dfa_state << "Initial product_path:" << endl;
+                print_product_path();
+                parent_map.emplace(next_state, transition.path());
                 product_path_.push_back(next_state);
+                std::cout << "product_path with last state:" << endl;
+                print_product_path();
                 // Backtrack to get the full path.
                 while (parent_map.find(next_state) != parent_map.end()) {
+                    std::cout << "Backtracking for next_state = " << next_state << endl;
                     auto preceding_path = parent_map.at(next_state);
+                    if (preceding_path.size() != 1) {
+                        std::cout << "No skill actions for now!" << endl;
+                        break;
+                    }
                     product_path_.insert(product_path_.end(), preceding_path.begin(), preceding_path.end());
                     next_state = preceding_path.back();
+                    std::cout << "Parent is " << next_state << endl;
                 }
+                std::cout << "Done backtracking and reverse!!! " << endl;
                 reverse(product_path_.begin(), product_path_.end());
                 save_paths();
+                print_product_path();
                 return product_path_;
             } else if (visited.find(next_state) == visited.end()) {
+                std::cout << "Case2: This state was not visited. Add it to a queue" << endl;
                 queue.push_back(next_state);
                 visited.insert(next_state);
+                parent_map.emplace(next_state, transition.path());
+            } else {
+                std::cout << "Case3: This state was visited." << endl;
             }
         }
     }
