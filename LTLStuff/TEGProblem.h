@@ -6,6 +6,7 @@
 #include "ProductState.h"
 #include "ProductTransition.h"
 #include "LTLFormula.h"
+// #include "DFANode.h"
 
 #include <spot/tl/formula.hh>
 #include <spot/twaalgos/dot.hh>
@@ -32,7 +33,7 @@ public:
             const map<string, set<GridState>> ap_mapping,
             const GridWorldDomain& grid_domain,
             const GridState& start_grid_state,
-            int problem_id = 0);
+            int problem_id = 0, bool on_the_fly=false);
 
     ~TEGProblem();
     
@@ -45,6 +46,7 @@ public:
     void print_product_path() const;
     void print_grid_path() const;
     void print_dfa_path() const;
+    void print_dfa_path(vector<size_t> dfa_path) const;
 
 private:
     set<string> atomic_props(const GridState& grid_state);
@@ -52,10 +54,15 @@ private:
     shared_ptr<spot::twa_graph> convert_to_dfa(const LTLFormula& formula);
     void save_dfa(const shared_ptr<spot::twa_graph>& dfa);
     void compute_product();
+    void solve_with_full_graph();
+    void solve_with_on_the_fly_graph();
     void save_paths();
     void print_dfa();
     void print_product_transitions(int in_dfa_state=-1, int out_dfa_state=-1);
     bdd get_self_edge_cond(size_t dfa_state);
+
+    vector<size_t> generate_dfa_path();
+    void realize_dfa_trace(vector<size_t> dfa_trace);
 
 
     // Class members
@@ -63,6 +70,7 @@ private:
     GridWorldDomain grid_domain_;
     GridState start_grid_state_;
     int problem_id_;
+    bool on_the_fly_;
 
     // DFA corresponding to LTL formula.
     shared_ptr<spot::twa_graph> dfa_;
@@ -70,6 +78,8 @@ private:
     // Nodes and edges in the product graph.
     vector<ProductState> product_states_;
     map<ProductState, vector<ProductTransition>> product_transitions_;
+
+    deque<vector<size_t>> pathsQueue_;
 
     // Solution path (if found).
     vector<ProductState> product_path_;

@@ -11,8 +11,8 @@ TEGProblem::TEGProblem(const string formula_str,
             const map<string, set<GridState>> ap_mapping,
             const GridWorldDomain& grid_domain,
             const GridState& start_grid_state,
-            int problem_id)
-    : grid_domain_(grid_domain), start_grid_state_(start_grid_state), problem_id_(problem_id) { 
+            int problem_id, bool on_the_fly)
+    : grid_domain_(grid_domain), start_grid_state_(start_grid_state), problem_id_(problem_id), on_the_fly_(on_the_fly) { 
 
     // Check if the start state is valid.
     if (!grid_domain_.is_valid_state(start_grid_state_)) {
@@ -51,12 +51,16 @@ TEGProblem::TEGProblem(const string formula_str,
 
     // print_dfa();
     save_dfa(dfa_);
-    auto start2 = chrono::high_resolution_clock::now();
-    // Compute the product graph of DFA and GridWorldDomain.
-    compute_product();
-    auto end2 = chrono::high_resolution_clock::now();
-    chrono::duration<double> elapsed_product = end2 - start2;
-    std::cout << "time of calculating the product: " << elapsed_product.count() << " seconds" << std::endl;
+    
+    if (!on_the_fly_) {    
+        auto start2 = chrono::high_resolution_clock::now();
+        // Compute the product graph of DFA and GridWorldDomain.
+        compute_product();
+
+        auto end2 = chrono::high_resolution_clock::now();
+        chrono::duration<double> elapsed_product = end2 - start2;
+        std::cout << "time of calculating the product: " << elapsed_product.count() << " seconds" << std::endl;
+    }
 }
 
 TEGProblem::~TEGProblem() {
@@ -239,6 +243,10 @@ bdd TEGProblem::props_to_bdd(const set<string>& props) {
 
 vector<ProductState> TEGProblem::solve() {
     product_path_.clear();
+    dfa_path_.clear();
+    pathsQueue_.clear();
+    product_states_.clear();
+    product_transitions_.clear();
 
     size_t dfa_start_state = dfa_->get_init_state_number();
     if (dfa_->state_is_accepting(dfa_start_state)) {
@@ -246,8 +254,17 @@ vector<ProductState> TEGProblem::solve() {
         return vector<ProductState>();
     }
 
-    // std::cout << "DFA start state="  << dfa_start_state << endl;
-    // std::cout << "Grid start state="  << start_grid_state_ << endl;
+    if (on_the_fly_) {
+        solve_with_on_the_fly_graph();
+    } else {
+        solve_with_full_graph();
+    }
+    return product_path_;
+}
+
+void TEGProblem::solve_with_full_graph() {
+
+    size_t dfa_start_state = dfa_->get_init_state_number();
 
     deque<ProductState> queue;
     queue.emplace_back(start_grid_state_, dfa_start_state);
@@ -258,30 +275,23 @@ vector<ProductState> TEGProblem::solve() {
     map<ProductState, vector<ProductState>> parent_map;
 
     while (!queue.empty()) {
-        // std::cout << "======Queue is not empty=====" << endl;
         ProductState current_state = queue.front();
         queue.pop_front();
 
-        // std::cout << "curr product state="  << current_state << endl;
-
         for (const auto& transition : product_transitions_[current_state]) {
-            // check if the transition from `current_state` to `next_state` is accepting.
+            // Get the product state where this transition leads. 
             ProductState next_state = transition.out_state();
-            // std::cout << "Transition leads to state="  << next_state << endl;
 
             // Get the next dfa state.
             size_t next_dfa_state = next_state.get_dfa_state();
 
             if (dfa_->state_is_accepting(next_dfa_state)) {
-                // std::cout << "Case1: This state is accepting!! next_dfa_state=" << next_dfa_state << "Initial product_path:" << endl;
-                // print_product_path();
+                // Case 1: This next state is accepting. Solution is found!
                 parent_map.emplace(next_state, transition.path());
                 product_path_.push_back(next_state);
-                // std::cout << "product_path with last state:" << endl;
-                // print_product_path();
+
                 // Backtrack to get the full path.
                 while (parent_map.find(next_state) != parent_map.end()) {
-                    // std::cout << "Backtracking for next_state = " << next_state << endl;
                     auto preceding_path = parent_map.at(next_state);
                     if (preceding_path.size() != 1) {
                         std::cerr << "ERROR: Only primitive action are allowed for now!" << endl;
@@ -289,23 +299,76 @@ vector<ProductState> TEGProblem::solve() {
                     }
                     product_path_.insert(product_path_.end(), preceding_path.begin(), preceding_path.end());
                     next_state = preceding_path.back();
-                    // std::cout << "Parent is " << next_state << endl;
                 }
-                // std::cout << "Done backtracking and reverse!!! " << endl;
                 reverse(product_path_.begin(), product_path_.end());
                 save_paths();
-                return product_path_;
+                return;
             } else if (visited.find(next_state) == visited.end()) {
-                // std::cout << "Case2: This state was not visited. Add it to a queue" << endl;
+                // Case 2: This product state was not visited yet.
+                // Push it onto the queue for further exploration. 
                 queue.push_back(next_state);
                 visited.insert(next_state);
                 parent_map.emplace(next_state, transition.path());
-            } else {
-                // std::cout << "Case3: This state was visited." << endl;
             }
+                // Case 3: This product state was already visited. Do nothing.
         }
     }
-    return vector<ProductState>();
+}
+
+vector<size_t> TEGProblem::generate_dfa_path() {
+
+    while (!pathsQueue_.empty()) {
+        auto currentPath = pathsQueue_.front();
+        pathsQueue_.pop_front();
+
+        size_t current_dfa_state = currentPath.back();
+
+        if (dfa_->state_is_accepting(current_dfa_state)) {
+            return currentPath;
+        }
+
+        for (auto& edge: dfa_->out(current_dfa_state)) {
+
+            size_t next_dfa_state = edge.dst;
+            if (next_dfa_state != current_dfa_state) { 
+                vector<size_t> newPath(currentPath);
+                newPath.push_back(next_dfa_state);
+                pathsQueue_.push_back(newPath);
+            }
+        }
+        
+    }
+    return vector<size_t>{};
+}
+
+void TEGProblem::realize_dfa_trace(vector<size_t> dfa_trace) {
+
+    if (dfa_trace.empty()) {
+        cerr << "ERROR: the DFA trace is empty!" << endl;
+        return;
+    } else if (dfa_trace.size() == 1) {
+        cerr << "ERROR: the DFA trace is of size 1!" << endl;
+        return;
+    }
+
+}
+
+void TEGProblem::solve_with_on_the_fly_graph() {
+
+    // Initialize all paths from the root = the start dfa state.
+    pathsQueue_.push_back({dfa_->get_init_state_number()});
+
+    int max_num_iters = 5;
+
+    do {
+        // Pick a "likely" DFA trace that ends in the acceptance state.
+        vector<size_t> dfa_trace = generate_dfa_path();
+        cout << "Likely dfa trace under consideration of size " << dfa_trace.size() << endl;
+        print_dfa_path(dfa_trace);
+        // Attempt to realize this trace in the task domain.
+        realize_dfa_trace(dfa_trace);
+        max_num_iters--;
+    } while (product_path_.empty() && !pathsQueue_.empty() && max_num_iters >= 0);
 }
 
 bdd TEGProblem::get_self_edge_cond(size_t dfa_state) {
@@ -445,6 +508,17 @@ void TEGProblem::print_dfa_path() const {
     if (!dfa_path_.empty()) {
         std::cout << dfa_path_.front();
         for (auto it = next(dfa_path_.begin()); it != dfa_path_.end(); ++it) {
+            std::cout << " -> " << *it;
+        }
+    }
+    std::cout << endl;
+}
+
+void TEGProblem::print_dfa_path(vector<size_t> dfa_path) const {
+    std::cout << "DFA Path:" << endl;
+    if (!dfa_path.empty()) {
+        std::cout << dfa_path.front();
+        for (auto it = next(dfa_path.begin()); it != dfa_path.end(); ++it) {
             std::cout << " -> " << *it;
         }
     }
