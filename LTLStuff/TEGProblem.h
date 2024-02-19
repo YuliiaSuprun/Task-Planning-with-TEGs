@@ -62,7 +62,8 @@ private:
     bdd get_self_edge_cond(size_t dfa_state);
 
     vector<size_t> generate_dfa_path();
-    void realize_dfa_trace(vector<size_t> dfa_trace);
+    void generate_successors(const ProductState& prod_state);
+    void realize_dfa_trace(vector<size_t>& dfa_trace);
 
 
     // Class members

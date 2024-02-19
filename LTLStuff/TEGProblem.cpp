@@ -155,45 +155,8 @@ void TEGProblem::compute_product() {
 
     // Compute transitions in the product based on valid transitions in both the GridWorld and the DFA.
     for (const auto& prod_state : product_states_) {
-        size_t dfa_state = prod_state.get_dfa_state();
-        GridState grid_state = prod_state.get_grid_state();
-        // This is a current label.
-        set<string> curr_grid_state_props = atomic_props(grid_state);
-
-        // Add transitions based on "primitive" actions in the domain.
-        for (const auto& action : grid_domain_.get_actions()) {
-            GridState next_grid_state = grid_state.apply(action);
-            if (!grid_domain_.is_valid_state(next_grid_state)) {
-                continue;
-            }
-            // Get the atomic propositions at the next grid world state.
-            set<string> next_grid_state_props = atomic_props(next_grid_state);
-            if (curr_grid_state_props == next_grid_state_props) {
-                // DFA state stays the same.
-                // Any grid transition would be valid.
-                ProductState next_prod_state(next_grid_state, dfa_state);
-                product_transitions_[prod_state].push_back(ProductTransition(prod_state, next_prod_state, bddfalse, action));
-            }
-            next_grid_state_props.insert(curr_grid_state_props.begin(), curr_grid_state_props.end());
-            // BDD operations
-            bdd bdd_expr = props_to_bdd(next_grid_state_props);
-            for (auto& edge: dfa_->out(dfa_state)) {
-
-                // Could also use edge.acc, which is spot::acc_cond::mark_t
-                if ((edge.cond & bdd_expr) == bdd_expr) { 
-                    size_t next_dfa_state = edge.dst;
-                    ProductState next_prod_state(next_grid_state, next_dfa_state);
-                    product_transitions_[prod_state].push_back(ProductTransition(prod_state, next_prod_state, edge.cond, action));
-                    break;
-                }
-            }
-            // For garbage collection purposes.
-            bdd_expr = bddfalse;
-        }
-
+        generate_successors(prod_state);
     }
-
-    // print_product_transitions(2, 1);
 }
 
 set<string> TEGProblem::atomic_props(const GridState& grid_state) {
@@ -243,10 +206,6 @@ bdd TEGProblem::props_to_bdd(const set<string>& props) {
 
 vector<ProductState> TEGProblem::solve() {
     product_path_.clear();
-    dfa_path_.clear();
-    pathsQueue_.clear();
-    product_states_.clear();
-    product_transitions_.clear();
 
     size_t dfa_start_state = dfa_->get_init_state_number();
     if (dfa_->state_is_accepting(dfa_start_state)) {
@@ -341,7 +300,45 @@ vector<size_t> TEGProblem::generate_dfa_path() {
     return vector<size_t>{};
 }
 
-void TEGProblem::realize_dfa_trace(vector<size_t> dfa_trace) {
+void TEGProblem::generate_successors(const ProductState& prod_state) {
+    size_t dfa_state = prod_state.get_dfa_state();
+    GridState grid_state = prod_state.get_grid_state();
+    // This is a current label.
+    set<string> curr_grid_state_props = atomic_props(grid_state);
+
+    // Add transitions based on "primitive" actions in the domain.
+    for (const auto& action : grid_domain_.get_actions()) {
+        GridState next_grid_state = grid_state.apply(action);
+        if (!grid_domain_.is_valid_state(next_grid_state)) {
+            continue;
+        }
+        // Get the atomic propositions at the next grid world state.
+        set<string> next_grid_state_props = atomic_props(next_grid_state);
+        if (curr_grid_state_props == next_grid_state_props) {
+            // DFA state stays the same.
+            // Any grid transition would be valid.
+            ProductState next_prod_state(next_grid_state, dfa_state);
+            product_transitions_[prod_state].push_back(ProductTransition(prod_state, next_prod_state, bddfalse, action));
+        }
+        next_grid_state_props.insert(curr_grid_state_props.begin(), curr_grid_state_props.end());
+        // BDD operations
+        bdd bdd_expr = props_to_bdd(next_grid_state_props);
+        for (auto& edge: dfa_->out(dfa_state)) {
+
+            // Could also use edge.acc, which is spot::acc_cond::mark_t
+            if ((edge.cond & bdd_expr) == bdd_expr) { 
+                size_t next_dfa_state = edge.dst;
+                ProductState next_prod_state(next_grid_state, next_dfa_state);
+                product_transitions_[prod_state].push_back(ProductTransition(prod_state, next_prod_state, edge.cond, action));
+                break;
+            }
+        }
+        // For garbage collection purposes.
+        bdd_expr = bddfalse;
+    }
+}
+
+void TEGProblem::realize_dfa_trace(vector<size_t>& dfa_trace) {
 
     if (dfa_trace.empty()) {
         cerr << "ERROR: the DFA trace is empty!" << endl;
@@ -351,14 +348,105 @@ void TEGProblem::realize_dfa_trace(vector<size_t> dfa_trace) {
         return;
     }
 
+    size_t dfa_start_state = dfa_trace.front();
+    ProductState start_state(start_grid_state_, dfa_start_state);
+    map<size_t, deque<ProductState>> regionQueues;
+    regionQueues[dfa_start_state].push_back(start_state);
+
+    size_t currentRegionIndex = 0;
+
+    set<ProductState> visited;
+    visited.insert(start_state);
+
+    map<ProductState, vector<ProductState>> parent_map;
+
+    while (!regionQueues[dfa_start_state].empty()) {
+        size_t curr_dfa_state = dfa_trace.at(currentRegionIndex);
+        auto& queue = regionQueues[curr_dfa_state];
+
+        if (queue.empty()) {
+            // Backtrack if necessary
+            currentRegionIndex--;
+            continue;
+        }
+        // Queue is not empty!
+        ProductState current_state = queue.front();
+        queue.pop_front();
+
+        // Check if state was expanded?
+        // If not, then generate successors for this state!
+        if (product_transitions_.count(current_state) == 0) {
+            // Expand the state.
+            generate_successors(current_state);
+        }
+
+        for (const auto& transition : product_transitions_.at(current_state)) {
+            // Get the product state where this transition leads. 
+            ProductState next_state = transition.out_state();
+
+            // Check if it was already explored.
+            if (visited.find(next_state) != visited.end()) {
+                // Skip this state.
+                continue;
+            }
+
+            // Get the next dfa state.
+            size_t next_dfa_state = next_state.get_dfa_state();
+
+            // We are interested only in the transitions that either stay in the same dfa state or lead to the next dfa state in the trace.
+            if (next_dfa_state != dfa_trace.at(currentRegionIndex) &&
+            next_dfa_state != dfa_trace.at(currentRegionIndex + 1)) {
+                // Skip states that lead to any other dfa states.
+                continue;
+            }
+
+            
+            // Add it to the parent map to be able to backtrack.
+            parent_map.emplace(next_state, transition.path());
+ 
+            if (next_dfa_state == dfa_trace.at(currentRegionIndex + 1)) {
+                // We were able to get to the next DFA state in a trace!
+                currentRegionIndex++;
+                // Check if it's the accepting state (last in the dfa trace).
+                // If so, we have a solution!
+                if (currentRegionIndex == dfa_trace.size() - 1) {
+                    product_path_.push_back(next_state);
+
+                    // Backtrack to get the full path.
+                    while (parent_map.find(next_state) != parent_map.end()) {
+                        auto preceding_path = parent_map.at(next_state);
+                        if (preceding_path.size() != 1) {
+                            std::cerr << "ERROR: Only primitive action are allowed for now!" << endl;
+                            break;
+                        }
+                        product_path_.insert(product_path_.end(), preceding_path.begin(), preceding_path.end());
+                        next_state = preceding_path.back();
+                    }
+                    reverse(product_path_.begin(), product_path_.end());
+                    save_paths();
+                    return;
+                }
+
+            } 
+
+            // Push this new product state onto the corresponding queue.
+            regionQueues[next_dfa_state].push_back(next_state);
+            // This state has been visited now!
+            visited.insert(next_state);
+        }
+    }
 }
 
 void TEGProblem::solve_with_on_the_fly_graph() {
 
+    product_transitions_.clear();
+    dfa_path_.clear();
+    pathsQueue_.clear();
+
     // Initialize all paths from the root = the start dfa state.
     pathsQueue_.push_back({dfa_->get_init_state_number()});
 
-    int max_num_iters = 5;
+    int max_num_iters = 50; // Depends on the nature of the problem.
 
     do {
         // Pick a "likely" DFA trace that ends in the acceptance state.
