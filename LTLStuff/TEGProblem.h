@@ -6,11 +6,17 @@
 #include "ProductState.h"
 #include "ProductTransition.h"
 #include "LTLFormula.h"
+
 #include <spot/tl/formula.hh>
 #include <spot/twaalgos/dot.hh>
 #include <spot/twaalgos/translate.hh>
 #include <spot/twaalgos/totgba.hh>
+#include <spot/twaalgos/hoa.hh>
+#include <spot/twaalgos/remprop.hh>
+#include <spot/twaalgos/postproc.hh> 
 #include <spot/twa/bddprint.hh>
+#include <spot/tl/ltlf.hh>
+
 #include <bddx.h>
 #include <map>
 #include <vector>
