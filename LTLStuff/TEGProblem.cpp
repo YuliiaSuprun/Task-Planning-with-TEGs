@@ -137,8 +137,8 @@ void TEGProblem::save_dfa(const shared_ptr<spot::twa_graph>& dfa) {
 
 void TEGProblem::compute_product() {
     // Clear previous data.
-    product_states_.clear();
-    product_transitions_.clear();
+    full_product_states_.clear();
+    full_product_transitions_.clear();
 
     // Iterate over all grid world states and DFA states to compute product states.
     for (size_t r = 0; r < grid_domain_.R(); ++r) {
@@ -147,14 +147,14 @@ void TEGProblem::compute_product() {
             // States in dfa are always numbered from 0 to (num_states-1)
             for (size_t dfa_state = 0; dfa_state < dfa_->num_states(); ++dfa_state) {
                 ProductState ps(grid_state, dfa_state);
-                product_states_.push_back(ps);
+                full_product_states_.push_back(ps);
             }
         }
     }
-    std::cout << product_states_.size() << " product states were generated" << endl;
+    std::cout << full_product_states_.size() << " product states were generated" << endl;
 
     // Compute transitions in the product based on valid transitions in both the GridWorld and the DFA.
-    for (const auto& prod_state : product_states_) {
+    for (const auto& prod_state : full_product_states_) {
         generate_successors(prod_state);
     }
 }
@@ -237,7 +237,7 @@ void TEGProblem::solve_with_full_graph() {
         ProductState current_state = queue.front();
         queue.pop_front();
 
-        for (const auto& transition : product_transitions_[current_state]) {
+        for (const auto& transition : full_product_transitions_[current_state]) {
             // Get the product state where this transition leads. 
             ProductState next_state = transition.out_state();
 
@@ -312,12 +312,6 @@ void TEGProblem::generate_successors(const ProductState& prod_state) {
         }
         // Get the atomic propositions at the next grid world state.
         set<string> next_grid_state_props = atomic_props(next_grid_state);
-        if (curr_grid_state_props == next_grid_state_props) {
-            // DFA state stays the same.
-            // Any grid transition would be valid.
-            ProductState next_prod_state(next_grid_state, dfa_state);
-            product_transitions_[prod_state].push_back(ProductTransition(prod_state, next_prod_state, bddfalse, action));
-        }
         next_grid_state_props.insert(curr_grid_state_props.begin(), curr_grid_state_props.end());
         // BDD operations
         bdd bdd_expr = props_to_bdd(next_grid_state_props);
@@ -327,7 +321,7 @@ void TEGProblem::generate_successors(const ProductState& prod_state) {
             if ((edge.cond & bdd_expr) == bdd_expr) { 
                 size_t next_dfa_state = edge.dst;
                 ProductState next_prod_state(next_grid_state, next_dfa_state);
-                product_transitions_[prod_state].push_back(ProductTransition(prod_state, next_prod_state, edge.cond, action));
+                full_product_transitions_[prod_state].push_back(ProductTransition(prod_state, next_prod_state, edge.cond, action));
                 break;
             }
         }
@@ -373,12 +367,12 @@ void TEGProblem::realize_dfa_trace(vector<size_t>& dfa_trace) {
 
         // Check if state was expanded?
         // If not, then generate successors for this state!
-        if (product_transitions_.count(current_state) == 0) {
+        if (full_product_transitions_.count(current_state) == 0) {
             // Expand the state.
             generate_successors(current_state);
         }
 
-        for (const auto& transition : product_transitions_.at(current_state)) {
+        for (const auto& transition : full_product_transitions_.at(current_state)) {
             // Get the product state where this transition leads. 
             ProductState next_state = transition.out_state();
 
@@ -437,7 +431,7 @@ void TEGProblem::realize_dfa_trace(vector<size_t>& dfa_trace) {
 
 void TEGProblem::solve_with_on_the_fly_graph() {
 
-    product_transitions_.clear();
+    full_product_transitions_.clear();
     dfa_path_.clear();
     nodeQueue_.clear();
 
@@ -552,7 +546,7 @@ void TEGProblem::print_dfa() {
 
 void TEGProblem::print_product_transitions(int in_dfa_state, int out_dfa_state) {
     std::cout << "Product Transitions:" << endl;
-    for (const auto& transition_entry : product_transitions_) {
+    for (const auto& transition_entry : full_product_transitions_) {
         const ProductState& source_state = transition_entry.first;
         if (in_dfa_state == -1 || static_cast<size_t>(in_dfa_state) == source_state.get_dfa_state()) {
             std::cout << source_state << " -> "; 

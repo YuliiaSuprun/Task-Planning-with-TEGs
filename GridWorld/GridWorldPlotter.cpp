@@ -1,6 +1,10 @@
 #include "GridWorldPlotter.h"
 
 GridWorldPlotter::GridWorldPlotter(GridWorldDomain grid_domain, int windowWidth, int windowHeight) : grid_domain_{grid_domain}, grid_size_{grid_domain.R()}, WINDOW_WIDTH{windowWidth}, WINDOW_HEIGHT{windowHeight} {
+    if (grid_size_ <= 0) {
+        cerr << "ERROR: invalid grid size value!" << endl;
+        return;
+    }
     // Calculate cell size based on window size and grid dimensions
     cell_width_ = WINDOW_WIDTH / static_cast<float>(grid_size_);
     cell_height_ = WINDOW_HEIGHT / static_cast<float>(grid_size_);

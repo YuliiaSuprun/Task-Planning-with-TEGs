@@ -77,8 +77,8 @@ private:
     shared_ptr<spot::twa_graph> dfa_;
 
     // Nodes and edges in the product graph.
-    vector<ProductState> product_states_;
-    map<ProductState, vector<ProductTransition>> product_transitions_;
+    vector<ProductState> full_product_states_;
+    map<ProductState, vector<ProductTransition>> full_product_transitions_;
 
     deque<shared_ptr<DFANode>> nodeQueue_;
 
