@@ -6,7 +6,7 @@
 #include "ProductState.h"
 #include "ProductTransition.h"
 #include "LTLFormula.h"
-// #include "DFANode.h"
+#include "DFANode.h"
 
 #include <spot/tl/formula.hh>
 #include <spot/twaalgos/dot.hh>
@@ -80,7 +80,7 @@ private:
     vector<ProductState> product_states_;
     map<ProductState, vector<ProductTransition>> product_transitions_;
 
-    deque<vector<size_t>> pathsQueue_;
+    deque<shared_ptr<DFANode>> nodeQueue_;
 
     // Solution path (if found).
     vector<ProductState> product_path_;

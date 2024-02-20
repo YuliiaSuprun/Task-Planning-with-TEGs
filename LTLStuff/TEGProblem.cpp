@@ -276,28 +276,26 @@ void TEGProblem::solve_with_full_graph() {
 
 vector<size_t> TEGProblem::generate_dfa_path() {
 
-    while (!pathsQueue_.empty()) {
-        auto currentPath = pathsQueue_.front();
-        pathsQueue_.pop_front();
+    while (!nodeQueue_.empty()) {
+        auto currentNode = nodeQueue_.front();
+        nodeQueue_.pop_front();
 
-        size_t current_dfa_state = currentPath.back();
+        size_t current_dfa_state = currentNode->getState();
 
         if (dfa_->state_is_accepting(current_dfa_state)) {
-            return currentPath;
+            return currentNode->getPathToRoot();
         }
 
         for (auto& edge: dfa_->out(current_dfa_state)) {
-
             size_t next_dfa_state = edge.dst;
             if (next_dfa_state != current_dfa_state) { 
-                vector<size_t> newPath(currentPath);
-                newPath.push_back(next_dfa_state);
-                pathsQueue_.push_back(newPath);
+                auto childNode = make_shared<DFANode>(next_dfa_state, currentNode);
+                currentNode->addChild(childNode);
+                nodeQueue_.push_back(childNode);
             }
         }
-        
     }
-    return vector<size_t>{};
+    return vector<size_t>{}; // Return empty if no path is found
 }
 
 void TEGProblem::generate_successors(const ProductState& prod_state) {
@@ -441,10 +439,11 @@ void TEGProblem::solve_with_on_the_fly_graph() {
 
     product_transitions_.clear();
     dfa_path_.clear();
-    pathsQueue_.clear();
+    nodeQueue_.clear();
 
     // Initialize all paths from the root = the start dfa state.
-    pathsQueue_.push_back({dfa_->get_init_state_number()});
+    auto root = make_shared<DFANode>(dfa_->get_init_state_number());
+    nodeQueue_.push_back(root);
 
     int max_num_iters = 50; // Depends on the nature of the problem.
 
@@ -456,7 +455,7 @@ void TEGProblem::solve_with_on_the_fly_graph() {
         // Attempt to realize this trace in the task domain.
         realize_dfa_trace(dfa_trace);
         max_num_iters--;
-    } while (product_path_.empty() && !pathsQueue_.empty() && max_num_iters >= 0);
+    } while (product_path_.empty() && !nodeQueue_.empty() && max_num_iters >= 0);
 }
 
 bdd TEGProblem::get_self_edge_cond(size_t dfa_state) {
