@@ -179,10 +179,12 @@ set<string> TEGProblem::atomic_props(const GridState& grid_state) {
     Return the BDD representation (from the BDD package) of the logical
     conjunction of the atomic propositions (positive and negative).
 */
-bdd TEGProblem::props_to_bdd(const set<string>& props) {
+bdd TEGProblem::get_state_bdd(const GridState& grid_state) {
+
     // Start with a BDD representing true
     bdd result = bddtrue;
 
+    // Iterate over the ap_mapping to determine whether each ap is + or -
     for (const auto& prop_pair : formula_.get_ap_mapping()) {
         string prop = prop_pair.first;
         spot::formula prop_formula = spot::formula::ap(prop);
@@ -192,10 +194,12 @@ bdd TEGProblem::props_to_bdd(const set<string>& props) {
         }
         bdd prop_bdd = bdd_ithvar(var_num);
 
-        if (props.find(prop) == props.end()) {
-            // Proposition is absent (negative form)
+        auto ap_states = prop_pair.second;
+
+        if (ap_states.find(grid_state) == ap_states.end()) {
+            // prop is absent (negative form)
             prop_bdd = bdd_not(prop_bdd);
-        }
+        }   // Otherwise, prop has a positive form. Do nothing.
 
         // Logical AND with the result
         result &= prop_bdd;
@@ -301,8 +305,6 @@ vector<size_t> TEGProblem::generate_dfa_path() {
 void TEGProblem::generate_successors(const ProductState& prod_state) {
     size_t dfa_state = prod_state.get_dfa_state();
     GridState grid_state = prod_state.get_grid_state();
-    // This is a current label.
-    // set<string> curr_grid_state_props = atomic_props(grid_state);
 
     // Add transitions based on "primitive" actions in the domain.
     for (const auto& action : grid_domain_.get_actions()) {
@@ -310,7 +312,7 @@ void TEGProblem::generate_successors(const ProductState& prod_state) {
         if (!grid_domain_.is_valid_state(next_grid_state)) {
             continue;
         }
-        auto dfa_transition = find_transition(next_grid_state, grid_state, dfa_state);
+        auto dfa_transition = find_transition(next_grid_state, dfa_state);
 
         if (dfa_transition == nullptr) {
             cerr << "ERROR: no dfa transition was found for some action!" << endl;
@@ -331,14 +333,9 @@ bool TEGProblem::is_transition_valid(const bdd& edge_cond, const bdd& next_state
     return implication == bddtrue;
 }
 
-spot::twa_graph::edge_storage_t* TEGProblem::find_transition(const GridState& next_grid_state, const GridState& curr_grid_state, size_t curr_dfa_state) {
+spot::twa_graph::edge_storage_t* TEGProblem::find_transition(const GridState& next_grid_state, size_t curr_dfa_state) {
     // Retrieve atomic propositions for next grid states
-    set<string> next_grid_state_props = atomic_props(next_grid_state);
-    set<string> curr_grid_state_props = atomic_props(curr_grid_state);
-
-    next_grid_state_props.insert(curr_grid_state_props.begin(), curr_grid_state_props.end());
-
-    bdd next_grid_state_bdd = props_to_bdd(next_grid_state_props);
+    bdd next_grid_state_bdd = get_state_bdd(next_grid_state);
 
     // Iterate over outgoing transitions of the current DFA state
     for (auto& edge : dfa_->out(curr_dfa_state)) {
