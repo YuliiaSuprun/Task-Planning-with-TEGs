@@ -64,6 +64,9 @@ private:
     vector<size_t> generate_dfa_path();
     void generate_successors(const ProductState& prod_state);
     void realize_dfa_trace(vector<size_t>& dfa_trace);
+    spot::twa_graph::edge_storage_t* find_transition(const GridState& next_grid_state, const GridState& curr_grid_state, size_t curr_dfa_state);
+
+    bool is_transition_valid(const bdd& edge_cond, const bdd& next_state_bdd);
 
 
     // Class members

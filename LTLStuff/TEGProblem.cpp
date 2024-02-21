@@ -302,7 +302,7 @@ void TEGProblem::generate_successors(const ProductState& prod_state) {
     size_t dfa_state = prod_state.get_dfa_state();
     GridState grid_state = prod_state.get_grid_state();
     // This is a current label.
-    set<string> curr_grid_state_props = atomic_props(grid_state);
+    // set<string> curr_grid_state_props = atomic_props(grid_state);
 
     // Add transitions based on "primitive" actions in the domain.
     for (const auto& action : grid_domain_.get_actions()) {
@@ -310,25 +310,48 @@ void TEGProblem::generate_successors(const ProductState& prod_state) {
         if (!grid_domain_.is_valid_state(next_grid_state)) {
             continue;
         }
-        // Get the atomic propositions at the next grid world state.
-        set<string> next_grid_state_props = atomic_props(next_grid_state);
-        next_grid_state_props.insert(curr_grid_state_props.begin(), curr_grid_state_props.end());
-        // BDD operations
-        bdd bdd_expr = props_to_bdd(next_grid_state_props);
-        for (auto& edge: dfa_->out(dfa_state)) {
+        auto dfa_transition = find_transition(next_grid_state, grid_state, dfa_state);
 
-            // Could also use edge.acc, which is spot::acc_cond::mark_t
-            if ((edge.cond & bdd_expr) == bdd_expr) { 
-                size_t next_dfa_state = edge.dst;
-                ProductState next_prod_state(next_grid_state, next_dfa_state);
-                full_product_transitions_[prod_state].push_back(ProductTransition(prod_state, next_prod_state, edge.cond, action));
-                break;
-            }
+        if (dfa_transition == nullptr) {
+            cerr << "ERROR: no dfa transition was found for some action!" << endl;
+            continue;
         }
-        // For garbage collection purposes.
-        bdd_expr = bddfalse;
+
+        size_t next_dfa_state = dfa_transition->dst;
+        ProductState next_prod_state(next_grid_state, next_dfa_state);
+        full_product_transitions_[prod_state].push_back(ProductTransition(prod_state, next_prod_state, dfa_transition->cond, action));
     }
 }
+
+bool TEGProblem::is_transition_valid(const bdd& edge_cond, const bdd& next_state_bdd) {
+    // next_state_bdd is a full assignment
+    // edge_cond is a partial assignment
+    // check if "next_state_bdd => edge_cond"
+    bdd implication = bdd_apply(bdd_not(next_state_bdd), edge_cond, bddop_or);
+    return implication == bddtrue;
+}
+
+spot::twa_graph::edge_storage_t* TEGProblem::find_transition(const GridState& next_grid_state, const GridState& curr_grid_state, size_t curr_dfa_state) {
+    // Retrieve atomic propositions for next grid states
+    set<string> next_grid_state_props = atomic_props(next_grid_state);
+    set<string> curr_grid_state_props = atomic_props(curr_grid_state);
+
+    next_grid_state_props.insert(curr_grid_state_props.begin(), curr_grid_state_props.end());
+
+    bdd next_grid_state_bdd = props_to_bdd(next_grid_state_props);
+
+    // Iterate over outgoing transitions of the current DFA state
+    for (auto& edge : dfa_->out(curr_dfa_state)) {
+        if (is_transition_valid(edge.cond, next_grid_state_bdd)) {
+            // Found a valid transition
+            return &edge;
+        }
+    }
+    // If no valid transition is found
+    return nullptr;
+}
+
+
 
 void TEGProblem::realize_dfa_trace(vector<size_t>& dfa_trace) {
 
