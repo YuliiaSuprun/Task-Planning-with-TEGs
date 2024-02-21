@@ -19,7 +19,7 @@ int main() {
     bool on_the_fly = true;
 
     // Caching flag.
-    bool cache = false;
+    bool cache = true;
 
     // GridWorldDomain dimensions.
     double scale = 1; 

@@ -46,8 +46,6 @@ public:
 
     vector<ProductState> path(bool with_end = false) const { 
         if (isCached_) {
-            cout << "Retrieve a cached path!!!" << endl;
-
             // Use std::dynamic_pointer_cast for shared_ptr
             shared_ptr<const CompoundAction> compoundActionPtr = dynamic_pointer_cast<const CompoundAction>(action_);
 

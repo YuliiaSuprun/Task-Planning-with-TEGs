@@ -16,7 +16,6 @@ public:
     }
 
     void cache() {
-        std::cout << "Setting the grid state to Cached!!!" << std::endl; 
         isCached_ = true;  
     }
 

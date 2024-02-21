@@ -22,6 +22,8 @@
 #include <map>
 #include <vector>
 #include <deque>
+#include <queue>
+#include <unordered_map>
 #include <string>
 #include <set>
 
@@ -70,6 +72,10 @@ private:
     vector<ProductState> construct_path(const map<ProductState, vector<ProductState>>& parent_map, ProductState target_state, bool cached=false, size_t start_dfa_state=0);
 
 
+    int dfa_transition_cost(size_t from_state, size_t to_state);
+    void update_dfa_transition_cost(size_t from_state, size_t to_state, int cost);
+
+
 
     // Class members
     LTLFormula formula_;
@@ -86,7 +92,17 @@ private:
     vector<ProductState> full_product_states_;
     map<ProductState, vector<ProductTransition>> full_product_transitions_;
 
-    deque<shared_ptr<DFANode>> nodeQueue_;
+    // deque<shared_ptr<DFANode>> nodeQueue_;
+
+    // A priority queue with a pair of (cost, DFANode)
+    priority_queue<pair<int, shared_ptr<DFANode>>, vector<pair<int, shared_ptr<DFANode>>>, greater<pair<int, shared_ptr<DFANode>>>> nodePriorityQueue_;
+
+    // Map to store the cost of transitions
+    map<pair<size_t, size_t>, int> dfa_transition_costs_;
+    int SUCCESS_COST = 0;
+    int FAILURE_COST = 100;
+    int DEFAULT_COST = 1;
+
 
     // Solution path (if found).
     vector<ProductState> product_path_;
