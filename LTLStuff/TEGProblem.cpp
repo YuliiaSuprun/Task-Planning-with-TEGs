@@ -251,19 +251,7 @@ void TEGProblem::solve_with_full_graph() {
             if (dfa_->state_is_accepting(next_dfa_state)) {
                 // Case 1: This next state is accepting. Solution is found!
                 parent_map.emplace(next_state, transition.path());
-                product_path_.push_back(next_state);
-
-                // Backtrack to get the full path.
-                while (parent_map.find(next_state) != parent_map.end()) {
-                    auto preceding_path = parent_map.at(next_state);
-                    if (preceding_path.size() != 1) {
-                        std::cerr << "ERROR: Only primitive action are allowed for now!" << endl;
-                        break;
-                    }
-                    product_path_.insert(product_path_.end(), preceding_path.begin(), preceding_path.end());
-                    next_state = preceding_path.back();
-                }
-                reverse(product_path_.begin(), product_path_.end());
+                product_path_ = construct_path(parent_map, next_state);
                 save_paths();
                 return;
             } else if (visited.find(next_state) == visited.end()) {
@@ -315,13 +303,13 @@ void TEGProblem::generate_successors(const ProductState& prod_state) {
         auto dfa_transition = find_transition(next_grid_state, dfa_state);
 
         if (dfa_transition == nullptr) {
-            cerr << "ERROR: no dfa transition was found for some action!" << endl;
             continue;
         }
 
         size_t next_dfa_state = dfa_transition->dst;
         ProductState next_prod_state(next_grid_state, next_dfa_state);
-        full_product_transitions_[prod_state].push_back(ProductTransition(prod_state, next_prod_state, dfa_transition->cond, action));
+        auto grid_action = make_shared<GridAction>(action);
+        full_product_transitions_[prod_state].push_back(ProductTransition(prod_state, next_prod_state, dfa_transition->cond, grid_action));
     }
 }
 
@@ -418,23 +406,25 @@ void TEGProblem::realize_dfa_trace(vector<size_t>& dfa_trace) {
  
             if (next_dfa_state == dfa_trace.at(currentRegionIndex + 1)) {
                 // We were able to get to the next DFA state in a trace!
+                // TODO: optimization 1: cache paths that cross the dfa states
+                if (!transition.isCached()) {
+                    vector<ProductState> path_to_cache_reversed = construct_path(parent_map, next_state, false, curr_dfa_state);
+                
+                    // Find the source node of this transition.
+                    ProductState start_state = path_to_cache_reversed.back();
+                    // Create compound action.
+                    auto compound_action = make_shared<CompoundAction>(path_to_cache_reversed);
+                    // Now we create a transition and add it to a product graph.
+                    // Serves as a "skip-connection".
+                    full_product_transitions_[start_state].push_back(ProductTransition(start_state, next_state, transition.dfa_edge_condition(), compound_action, true));
+                }
+
                 currentRegionIndex++;
                 // Check if it's the accepting state (last in the dfa trace).
                 // If so, we have a solution!
                 if (currentRegionIndex == dfa_trace.size() - 1) {
-                    product_path_.push_back(next_state);
-
                     // Backtrack to get the full path.
-                    while (parent_map.find(next_state) != parent_map.end()) {
-                        auto preceding_path = parent_map.at(next_state);
-                        if (preceding_path.size() != 1) {
-                            std::cerr << "ERROR: Only primitive action are allowed for now!" << endl;
-                            break;
-                        }
-                        product_path_.insert(product_path_.end(), preceding_path.begin(), preceding_path.end());
-                        next_state = preceding_path.back();
-                    }
-                    reverse(product_path_.begin(), product_path_.end());
+                    product_path_ = construct_path(parent_map, next_state);
                     save_paths();
                     return;
                 }
@@ -447,6 +437,31 @@ void TEGProblem::realize_dfa_trace(vector<size_t>& dfa_trace) {
             visited.insert(next_state);
         }
     }
+}
+
+vector<ProductState> TEGProblem::construct_path(const map<ProductState, vector<ProductState>>& parent_map, ProductState target_state, bool from_root, size_t start_dfa_state) {
+    vector<ProductState> path;
+    path.push_back(target_state);
+
+    size_t target_dfa_state = start_dfa_state;
+
+    while (parent_map.find(target_state) != parent_map.end() &&
+        (from_root || target_dfa_state == start_dfa_state)) {
+        const auto& preceding_path = parent_map.at(target_state);
+        
+        if (preceding_path.size() != 1) {
+            std::cout << "Compound action is used!" << endl;
+        }
+
+        path.insert(path.end(), preceding_path.begin(), preceding_path.end());
+        target_state = preceding_path.back();
+        target_dfa_state = target_state.get_dfa_state();
+    }
+
+    if (from_root) {
+        reverse(path.begin(), path.end());
+    }
+    return path;
 }
 
 void TEGProblem::solve_with_on_the_fly_graph() {

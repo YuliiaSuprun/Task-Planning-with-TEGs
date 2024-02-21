@@ -3,6 +3,8 @@
 
 #include <iostream>
 #include <ostream>
+#include <memory>
+#include <type_traits>
 
 #include <spot/tl/formula.hh>
 #include <spot/twaalgos/dot.hh>
@@ -11,20 +13,22 @@
 #include <bddx.h>
 #include "ProductState.h"
 #include "Action.h"
+#include "CompoundAction.h"
 
 using namespace std;
 
 class ProductTransition {
 public:
-    ProductTransition(const ProductState& in_state, const ProductState& out_state, bdd edge_cond, Action action)
-    : in_state_(in_state), out_state_(out_state), dfa_edge_cond_(edge_cond), action_(action) {}
+
+    ProductTransition(const ProductState& in_state, const ProductState& out_state, bdd edge_cond, shared_ptr<Action> action, bool isCached=false)
+    : in_state_(in_state), out_state_(out_state), dfa_edge_cond_(edge_cond), action_(action), isCached_(isCached) {}
 
     // Accessor methods
     bdd dfa_edge_condition() const {
         return dfa_edge_cond_;
     }
 
-    Action action() const {
+    shared_ptr<Action> action() const {
         return action_;
     }
 
@@ -36,15 +40,25 @@ public:
         return out_state_;
     }
 
-    vector<ProductState> path(bool with_end = false) const { 
+    bool isCached() const { 
+        return isCached_;
+    }
 
-        if (action_.isSkillAction()) {
-            const SkillAction* skillActionPtr = dynamic_cast<const SkillAction*>(&action_);
-            cout << "Reconstruct a path!!!" << endl;
-            // This is a skill action.
-            return skillActionPtr->reconstructed_path(in_state_.get_dfa_state(), out_state_.get_dfa_state(), with_end);
+    vector<ProductState> path(bool with_end = false) const { 
+        if (isCached_) {
+            cout << "Retrieve a cached path!!!" << endl;
+
+            // Use std::dynamic_pointer_cast for shared_ptr
+            shared_ptr<const CompoundAction> compoundActionPtr = dynamic_pointer_cast<const CompoundAction>(action_);
+
+            if (!compoundActionPtr) {
+                cerr << "ERROR: compoundActionPtr is null!!!" << endl;
+                return {};
+            }
+
+            return compoundActionPtr->cached_path(with_end);
         } else {
-            // This is a primitive action. 
+            // This is a primitive action.
             if (with_end) {
                 return vector<ProductState> {in_state_, out_state_};
             } else {
@@ -52,6 +66,7 @@ public:
             }
         }
     }
+
 
     bool operator==(const ProductTransition& other) const {
         return in_state_ == other.in_state_ && out_state_ == other.out_state_;
@@ -74,7 +89,8 @@ private:
     ProductState in_state_;
     ProductState out_state_;
     bdd dfa_edge_cond_; 
-    Action action_;
+    shared_ptr<Action> action_;
+    bool isCached_;
 };
 
 inline std::ostream& operator<<(std::ostream& os, const ProductTransition& ps) {

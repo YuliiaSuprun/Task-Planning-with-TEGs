@@ -67,6 +67,8 @@ private:
     spot::twa_graph::edge_storage_t* find_transition(const GridState& next_grid_state, size_t curr_dfa_state);
 
     bool is_transition_valid(const bdd& edge_cond, const bdd& next_state_bdd);
+    vector<ProductState> construct_path(const map<ProductState, vector<ProductState>>& parent_map, ProductState target_state, bool from_root=true, size_t start_dfa_state=0);
+
 
 
     // Class members

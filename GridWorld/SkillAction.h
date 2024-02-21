@@ -21,8 +21,6 @@ public:
         print_path();
     }
 
-    bool isSkillAction() const override { return true; }
-
     // Override the virtual function from Action
     vector<ProductState> projected_path(bool with_end = false) const {
         if (with_end || path_.empty()) {
