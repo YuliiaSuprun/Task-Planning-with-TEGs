@@ -6,10 +6,19 @@
 
 class GridState {
 public:
-    GridState(size_t x = 0, size_t y = 0) : x_(x), y_(y) {}
+    GridState(size_t x = 0, size_t y = 0, bool isCached=false) : x_(x), y_(y), isCached_(isCached) {}
 
     size_t x() const { return x_; }
     size_t y() const { return y_; }
+
+    bool isCached() const { 
+        return isCached_;
+    }
+
+    void cache() {
+        std::cout << "Setting the grid state to Cached!!!" << std::endl; 
+        isCached_ = true;  
+    }
 
     void set_x(size_t x) { x_ = x; }
     void set_y(size_t y) { y_ = y; }
@@ -34,6 +43,7 @@ public:
 private:
     size_t x_;
     size_t y_;
+    bool isCached_;
 };
 
 inline std::ostream& operator<<(std::ostream& os, const GridState& gs) {

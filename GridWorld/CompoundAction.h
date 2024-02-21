@@ -19,9 +19,13 @@ public:
     CompoundAction(vector<ProductState> path) : path_(path) {
         std::cout << "CompoundAction: initialized" << endl;
         print_path();
+        for (auto& state : path_) {
+            state.cache();
+        }
     }
 
     vector<ProductState> cached_path(bool with_end = false) const {
+
         if (with_end || path_.empty()) {
             return path_;
         } else {

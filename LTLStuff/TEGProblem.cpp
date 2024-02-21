@@ -11,8 +11,8 @@ TEGProblem::TEGProblem(const string formula_str,
             const map<string, set<GridState>> ap_mapping,
             const GridWorldDomain& grid_domain,
             const GridState& start_grid_state,
-            int problem_id, bool on_the_fly)
-    : grid_domain_(grid_domain), start_grid_state_(start_grid_state), problem_id_(problem_id), on_the_fly_(on_the_fly) { 
+            int problem_id, bool on_the_fly, bool cache)
+    : grid_domain_(grid_domain), start_grid_state_(start_grid_state), problem_id_(problem_id), on_the_fly_(on_the_fly), cache_(cache) { 
 
     // Check if the start state is valid.
     if (!grid_domain_.is_valid_state(start_grid_state_)) {
@@ -90,20 +90,6 @@ shared_ptr<spot::twa_graph> TEGProblem::convert_to_dfa(const LTLFormula& formula
     spot::twa_graph_ptr translated_dfa = trans.run(spot::from_ltlf(spot_formula));
 
     translated_dfa = spot::to_finite(translated_dfa);
-
-    // Print reachable states in Hanoi Omega Automata format.
-    // std::cout << "Printing  translated_dfa" << std::endl;
-    // spot::print_hoa(std::cout, translated_dfa) << '\n';
-
-    // spot::postprocessor post;
-    // post.set_type(spot::postprocessor::Generic);
-    // post.set_pref(spot::postprocessor::Deterministic);
-    // spot::twa_graph_ptr postprocessed_dfa = post.run(translated_dfa, spot_formula);
-    // std::cout << "Printing  postprocessed_dfa" << std::endl;
-    // spot::print_hoa(std::cout, postprocessed_dfa) << '\n';
-    
-    // translated_dfa->prop_state_acc(true);
-    // std::cout << "A state-based acceptance is now set to: " << translated_dfa->prop_state_acc() << endl;
 
     return translated_dfa;
 }
@@ -406,9 +392,9 @@ void TEGProblem::realize_dfa_trace(vector<size_t>& dfa_trace) {
  
             if (next_dfa_state == dfa_trace.at(currentRegionIndex + 1)) {
                 // We were able to get to the next DFA state in a trace!
-                // TODO: optimization 1: cache paths that cross the dfa states
-                if (!transition.isCached()) {
-                    vector<ProductState> path_to_cache_reversed = construct_path(parent_map, next_state, false, curr_dfa_state);
+                // Optimization 1: cache paths that cross the dfa states
+                if (cache_ && !transition.isCached()) {
+                    vector<ProductState> path_to_cache_reversed = construct_path(parent_map, next_state, true, curr_dfa_state);
                 
                     // Find the source node of this transition.
                     ProductState start_state = path_to_cache_reversed.back();
@@ -439,18 +425,18 @@ void TEGProblem::realize_dfa_trace(vector<size_t>& dfa_trace) {
     }
 }
 
-vector<ProductState> TEGProblem::construct_path(const map<ProductState, vector<ProductState>>& parent_map, ProductState target_state, bool from_root, size_t start_dfa_state) {
+vector<ProductState> TEGProblem::construct_path(const map<ProductState, vector<ProductState>>& parent_map, ProductState target_state, bool cached, size_t start_dfa_state) {
     vector<ProductState> path;
     path.push_back(target_state);
 
     size_t target_dfa_state = start_dfa_state;
 
     while (parent_map.find(target_state) != parent_map.end() &&
-        (from_root || target_dfa_state == start_dfa_state)) {
+        (!cached || target_dfa_state == start_dfa_state)) {
         const auto& preceding_path = parent_map.at(target_state);
         
         if (preceding_path.size() != 1) {
-            std::cout << "Compound action is used!" << endl;
+            std::cout << "Cached path is used!" << endl;
         }
 
         path.insert(path.end(), preceding_path.begin(), preceding_path.end());
@@ -458,7 +444,7 @@ vector<ProductState> TEGProblem::construct_path(const map<ProductState, vector<P
         target_dfa_state = target_state.get_dfa_state();
     }
 
-    if (from_root) {
+    if (!cached) {
         reverse(path.begin(), path.end());
     }
     return path;

@@ -19,6 +19,14 @@ public:
         return dfa_state_;
     }
 
+    bool isCached() const { 
+        return grid_state_.isCached();
+    }
+
+    void cache() { 
+        grid_state_.cache();  
+    }
+
     bool operator==(const ProductState& other) const {
         return grid_state_ == other.grid_state_ && dfa_state_ == other.dfa_state_;
     }

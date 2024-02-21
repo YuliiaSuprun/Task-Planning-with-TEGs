@@ -61,7 +61,12 @@ void GridWorldPlotter::visualize_path(const TEGProblem& problem) {
         const auto& state = grid_path[i];
         sf::RectangleShape pathCell(sf::Vector2f(cell_width_, cell_height_));
         pathCell.setPosition(state.y() * cell_width_, state.x() * cell_height_);
-        pathCell.setFillColor(sf::Color::Blue);
+        if (state.isCached()) {
+            pathCell.setFillColor(sf::Color::Magenta);
+        } else {
+            pathCell.setFillColor(sf::Color::Blue);
+        }
+
         if (i == 0) { // This is the start cell
             pathCell.setFillColor(sf::Color::Green);
         }

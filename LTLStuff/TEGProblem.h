@@ -33,7 +33,7 @@ public:
             const map<string, set<GridState>> ap_mapping,
             const GridWorldDomain& grid_domain,
             const GridState& start_grid_state,
-            int problem_id = 0, bool on_the_fly=false);
+            int problem_id = 0, bool on_the_fly=false, bool cache=false);
 
     ~TEGProblem();
     
@@ -67,7 +67,7 @@ private:
     spot::twa_graph::edge_storage_t* find_transition(const GridState& next_grid_state, size_t curr_dfa_state);
 
     bool is_transition_valid(const bdd& edge_cond, const bdd& next_state_bdd);
-    vector<ProductState> construct_path(const map<ProductState, vector<ProductState>>& parent_map, ProductState target_state, bool from_root=true, size_t start_dfa_state=0);
+    vector<ProductState> construct_path(const map<ProductState, vector<ProductState>>& parent_map, ProductState target_state, bool cached=false, size_t start_dfa_state=0);
 
 
 
@@ -77,6 +77,7 @@ private:
     GridState start_grid_state_;
     int problem_id_;
     bool on_the_fly_;
+    bool cache_;
 
     // DFA corresponding to LTL formula.
     shared_ptr<spot::twa_graph> dfa_;

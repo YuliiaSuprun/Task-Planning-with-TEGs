@@ -18,6 +18,9 @@ int main() {
     // On-the-fly Product Graph Construction Flag.
     bool on_the_fly = true;
 
+    // Caching flag.
+    bool cache = false;
+
     // GridWorldDomain dimensions.
     double scale = 1; 
     size_t R = 20 * scale + 1;
@@ -69,7 +72,7 @@ int main() {
         cout << "Solving for problem_id=" << problem_id << " and formula=" << formula << endl;
 
         // Initialize the TEG Problem.
-        TEGProblem problem(formula, ap_mapping, domain, start_grid_state, problem_id, on_the_fly);
+        TEGProblem problem(formula, ap_mapping, domain, start_grid_state, problem_id, on_the_fly, cache);
 
         auto start = chrono::high_resolution_clock::now();
 
