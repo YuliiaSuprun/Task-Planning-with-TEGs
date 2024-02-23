@@ -306,6 +306,11 @@ int TEGProblem::dfa_transition_cost(size_t from_state, size_t to_state) {
 
 void TEGProblem::update_dfa_transition_cost(shared_ptr<DFANode>& node, int cost) {
 
+    if (!feedback_) {
+        // We don't want to provide feedback when this flag is set to false.
+        return;
+    }
+
     auto parent = node->getParent();
     if (!parent) {
         // This is a root node.
