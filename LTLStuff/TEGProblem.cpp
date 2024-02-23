@@ -11,8 +11,9 @@ TEGProblem::TEGProblem(const string formula_str,
             const map<string, set<GridState>> ap_mapping,
             const GridWorldDomain& grid_domain,
             const GridState& start_grid_state,
-            int problem_id, bool on_the_fly, bool cache)
-    : grid_domain_(grid_domain), start_grid_state_(start_grid_state), problem_id_(problem_id), on_the_fly_(on_the_fly), cache_(cache) { 
+            int problem_id, bool on_the_fly, bool cache, bool feedback)
+    : grid_domain_(grid_domain), start_grid_state_(start_grid_state), problem_id_(problem_id), on_the_fly_(on_the_fly), cache_(cache),
+    feedback_(feedback) { 
 
     // Check if the start state is valid.
     if (!grid_domain_.is_valid_state(start_grid_state_)) {
@@ -252,44 +253,22 @@ void TEGProblem::solve_with_full_graph() {
     }
 }
 
-// vector<size_t> TEGProblem::generate_dfa_path() {
-
-//     while (!nodeQueue_.empty()) {
-//         auto currentNode = nodeQueue_.front();
-//         nodeQueue_.pop_front();
-
-//         size_t current_dfa_state = currentNode->getState();
-
-//         if (dfa_->state_is_accepting(current_dfa_state)) {
-//             return currentNode->getPathToRoot();
-//         }
-
-//         for (auto& edge: dfa_->out(current_dfa_state)) {
-//             size_t next_dfa_state = edge.dst;
-//             if (next_dfa_state != current_dfa_state) { 
-//                 auto childNode = make_shared<DFANode>(next_dfa_state, currentNode);
-//                 currentNode->addChild(childNode);
-//                 nodeQueue_.push_back(childNode);
-//             }
-//         }
-//     }
-//     return vector<size_t>{}; // Return empty if no path is found
-// }
-
-vector<size_t> TEGProblem::generate_dfa_path() {
+shared_ptr<DFANode> TEGProblem::generate_dfa_path() {
 
     while (!nodePriorityQueue_.empty()) {
         auto currentNodePair = nodePriorityQueue_.top();
         nodePriorityQueue_.pop();
         auto currentNode = currentNodePair.second;
+        // Delete the handle for this node in the map.
+        node_handles_.erase(currentNode);
 
         size_t current_dfa_state = currentNode->getState();
 
         if (dfa_->state_is_accepting(current_dfa_state)) {
-            auto dfa_trace = currentNode->getPathToRoot();
+            auto dfa_trace = currentNode->getPathFromRoot();
             cout << "Selected a DFA trace of size " << dfa_trace.size() - 1 << " and a cost of " << currentNodePair.first << endl;
             print_dfa_path(dfa_trace);
-            return dfa_trace;
+            return currentNode;
         }
 
         for (auto& edge: dfa_->out(current_dfa_state)) {
@@ -300,18 +279,21 @@ vector<size_t> TEGProblem::generate_dfa_path() {
                 int edge_cost = dfa_transition_cost(current_dfa_state, next_dfa_state);
                 int total_cost = currentNodePair.first + edge_cost;
 
-                auto childNode = make_shared<DFANode>(next_dfa_state, currentNode);
+                auto childNode = make_shared<DFANode>(next_dfa_state, currentNode, edge_cost);
                 currentNode->addChild(childNode);
-                nodePriorityQueue_.push(make_pair(total_cost, childNode));
+
+                auto handle = nodePriorityQueue_.push(make_pair(total_cost, childNode));
+                node_handles_[childNode] = handle;
             }
         }
     }
-    return vector<size_t>{}; // Return empty if no path is found
+    return nullptr; // Return empty if no path is found
 }
 
 
 // Define the transition_cost function based on past experiences.
 int TEGProblem::dfa_transition_cost(size_t from_state, size_t to_state) {
+    if (!feedback_) return DEFAULT_COST;
     auto it = dfa_transition_costs_.find(make_pair(from_state, to_state));
     if (it != dfa_transition_costs_.end()) {
         // Return the stored cost if available
@@ -322,8 +304,21 @@ int TEGProblem::dfa_transition_cost(size_t from_state, size_t to_state) {
     }
 }
 
-void TEGProblem::update_dfa_transition_cost(size_t from_state, size_t to_state, int cost) {
-    dfa_transition_costs_[make_pair(from_state, to_state)] = cost;
+void TEGProblem::update_dfa_transition_cost(shared_ptr<DFANode>& node, int cost) {
+
+    auto parent = node->getParent();
+    if (!parent) {
+        // This is a root node.
+        return;
+    }
+
+    // Update the cost in the cost table.
+    dfa_transition_costs_[make_pair(parent->getState(), node->getState())] = cost;
+
+    // Update the cost in the DFANode and the priority queue.
+    node->updateParentEdgeCost(cost, node_handles_, nodePriorityQueue_);
+
+    // print_node_priority_queue();
 }
 
 
@@ -375,7 +370,11 @@ spot::twa_graph::edge_storage_t* TEGProblem::find_transition(const GridState& ne
 
 
 
-void TEGProblem::realize_dfa_trace(vector<size_t>& dfa_trace) {
+void TEGProblem::realize_dfa_trace(shared_ptr<DFANode>& endTraceNode) {
+
+    auto dfa_trace = endTraceNode->getPathFromRoot();
+
+    auto dfa_nodes = endTraceNode->getNodePathFromRoot();
 
     if (dfa_trace.empty()) {
         cerr << "ERROR: the DFA trace is empty!" << endl;
@@ -450,7 +449,7 @@ void TEGProblem::realize_dfa_trace(vector<size_t>& dfa_trace) {
                 cout << "Succesfully realized this transition: " << transition.in_state().get_dfa_state() << "=>" << transition.out_state().get_dfa_state() << endl; 
 
                 // Update the cost to 0 based on the success of the transition.
-                update_dfa_transition_cost(curr_dfa_state, next_dfa_state, SUCCESS_COST);
+                update_dfa_transition_cost(dfa_nodes.at(currentRegionIndex + 1), SUCCESS_COST);
 
                 // Optimization 1: cache paths that cross the dfa states
                 if (cache_ && !transition.isCached()) {
@@ -492,8 +491,7 @@ void TEGProblem::realize_dfa_trace(vector<size_t>& dfa_trace) {
     }
     // We failed to realize the provided dfa trace.
     // Update the cost for the dfa transition we couldn't realize.
-    update_dfa_transition_cost(dfa_trace.at(maxRegionIndexReached),
-                               dfa_trace.at(maxRegionIndexReached + 1), FAILURE_COST);
+    update_dfa_transition_cost(dfa_nodes.at(maxRegionIndexReached + 1), FAILURE_COST);
 }
 
 vector<ProductState> TEGProblem::construct_path(const map<ProductState, vector<ProductState>>& parent_map, ProductState target_state, bool cached, size_t start_dfa_state) {
@@ -528,30 +526,29 @@ void TEGProblem::solve_with_on_the_fly_graph() {
 
     full_product_transitions_.clear();
     dfa_path_.clear();
-    // priority_queue has no clear() method! Need to do this mess..
-    priority_queue<pair<int, shared_ptr<DFANode>>, vector<pair<int, shared_ptr<DFANode>>>, greater<pair<int, shared_ptr<DFANode>>>> empty;
-    nodePriorityQueue_.swap(empty);
-
-    // nodeQueue_.clear();
-
 
     // Initialize all paths from the root = the start dfa state.
     auto root = make_shared<DFANode>(dfa_->get_init_state_number());
-    nodePriorityQueue_.push(make_pair(0, root));
+    auto handle = nodePriorityQueue_.push(make_pair(0, root));
+    node_handles_[root] = handle;
 
-    // nodeQueue_.push_back(root);
 
     int max_num_iters = 50; // Depends on the nature of the problem.
     int curr_iter = 0;
 
-    do {
+    while (product_path_.empty() && curr_iter < max_num_iters) {
         cout << "=== Iteration " << curr_iter++ << " ===" << endl;
         // Pick a "likely" DFA trace that ends in the acceptance state.
-        vector<size_t> dfa_trace = generate_dfa_path();
+        auto endTraceNode = generate_dfa_path();
+
+        if (!endTraceNode) {
+            // No more accepted DFA traces were found.
+            break;
+        }
 
         // Attempt to realize this trace in the task domain.
-        realize_dfa_trace(dfa_trace);
-    } while (product_path_.empty() && !nodePriorityQueue_.empty() && curr_iter < max_num_iters);
+        realize_dfa_trace(endTraceNode);
+    }
 }
 
 bdd TEGProblem::get_self_edge_cond(size_t dfa_state) {
@@ -714,5 +711,18 @@ map<string, set<GridState>> TEGProblem::get_ap_mapping() const {
 
 string TEGProblem::get_filename() const {
     return filename_;
+}
+
+void TEGProblem::print_node_priority_queue() { 
+    cout << "Printing the priority queue..." << endl;
+    NodeHeap heapCopy = nodePriorityQueue_;  // Make a copy of the heap
+    while (!heapCopy.empty()) {
+        auto pair = heapCopy.top();
+        int cost = pair.first;
+        auto node = pair.second;
+        // Print 'cost' and any information from 'node'
+        cout << "Cost: " << cost << ", DFA state: " << node->getState() << ", cost in the DFANode: " << node->getPathCost() << endl;
+        heapCopy.pop();
+    }
 }
 

@@ -7,6 +7,7 @@
 #include "ProductTransition.h"
 #include "LTLFormula.h"
 #include "DFANode.h"
+#include "Constants.h"
 
 #include <spot/tl/formula.hh>
 #include <spot/twaalgos/dot.hh>
@@ -35,7 +36,7 @@ public:
             const map<string, set<GridState>> ap_mapping,
             const GridWorldDomain& grid_domain,
             const GridState& start_grid_state,
-            int problem_id = 0, bool on_the_fly=false, bool cache=false);
+            int problem_id = 0, bool on_the_fly=false, bool cache=false, bool feedback=false);
 
     ~TEGProblem();
     
@@ -63,9 +64,9 @@ private:
     void print_product_transitions(int in_dfa_state=-1, int out_dfa_state=-1);
     bdd get_self_edge_cond(size_t dfa_state);
 
-    vector<size_t> generate_dfa_path();
+    shared_ptr<DFANode> generate_dfa_path();
     void generate_successors(const ProductState& prod_state);
-    void realize_dfa_trace(vector<size_t>& dfa_trace);
+    void realize_dfa_trace(shared_ptr<DFANode>& endTraceNode);
     spot::twa_graph::edge_storage_t* find_transition(const GridState& next_grid_state, size_t curr_dfa_state);
 
     bool is_transition_valid(const bdd& edge_cond, const bdd& next_state_bdd);
@@ -73,8 +74,9 @@ private:
 
 
     int dfa_transition_cost(size_t from_state, size_t to_state);
-    void update_dfa_transition_cost(size_t from_state, size_t to_state, int cost);
+    void update_dfa_transition_cost(shared_ptr<DFANode>& node, int cost);
 
+    void print_node_priority_queue();
 
 
     // Class members
@@ -84,6 +86,7 @@ private:
     int problem_id_;
     bool on_the_fly_;
     bool cache_;
+    bool feedback_;
 
     // DFA corresponding to LTL formula.
     shared_ptr<spot::twa_graph> dfa_;
@@ -92,16 +95,14 @@ private:
     vector<ProductState> full_product_states_;
     map<ProductState, vector<ProductTransition>> full_product_transitions_;
 
-    // deque<shared_ptr<DFANode>> nodeQueue_;
-
     // A priority queue with a pair of (cost, DFANode)
-    priority_queue<pair<int, shared_ptr<DFANode>>, vector<pair<int, shared_ptr<DFANode>>>, greater<pair<int, shared_ptr<DFANode>>>> nodePriorityQueue_;
+    NodeHeap nodePriorityQueue_;
+
+    map<shared_ptr<DFANode>, NodeHeap::handle_type> node_handles_;
+
 
     // Map to store the cost of transitions
     map<pair<size_t, size_t>, int> dfa_transition_costs_;
-    int SUCCESS_COST = 0;
-    int FAILURE_COST = 100;
-    int DEFAULT_COST = 1;
 
 
     // Solution path (if found).
