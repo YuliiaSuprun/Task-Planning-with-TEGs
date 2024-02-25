@@ -2,12 +2,11 @@
 #include <fstream>
 #include <iostream>
 #include <graphviz/gvc.h>
-#include "LTLFormula.h" 
 
 using namespace std;
 
-DFAManager::DFAManager(shared_ptr<spot::bdd_dict> bddDict)
-    : bdd_dict_(bddDict) {}
+DFAManager::DFAManager(shared_ptr<spot::bdd_dict> bddDict, bool feedback)
+    : bdd_dict_(bddDict), feedback_(feedback) {}
 
 void DFAManager::construct_dfa(const LTLFormula& formula) {
     spot::formula spot_formula = formula.get_spot_formula();
@@ -142,4 +141,126 @@ bdd DFAManager::get_self_edge_cond(size_t dfa_state) const{
     }
     cerr << "ERROR: no condition for self-transition was found!" << endl;
     return bddfalse;
+}
+
+shared_ptr<DFANode> DFAManager::generate_dfa_path() {
+    while (!nodePriorityQueue_.empty()) {
+        auto currentNodePair = nodePriorityQueue_.top();
+        nodePriorityQueue_.pop();
+        auto currentNode = currentNodePair.second;
+        // Delete the handle for this node in the map.
+        node_handles_.erase(currentNode);
+
+        size_t current_dfa_state = currentNode->getState();
+
+        if (is_accepting(current_dfa_state)) {
+            auto dfa_trace = currentNode->getPathFromRoot();
+            cout << "Selected a DFA trace of size " << dfa_trace.size() - 1 << " and a cost of " << currentNodePair.first << endl;
+            print_dfa_path(dfa_trace);
+            return currentNode;
+        }
+
+        for (auto& edge: get_transitions(current_dfa_state)) {
+            size_t next_dfa_state = edge.dst;
+
+            if (next_dfa_state != current_dfa_state) { 
+                // Calculate the cost for this transition
+                int edge_cost = dfa_transition_cost(current_dfa_state, next_dfa_state);
+                int total_cost = currentNodePair.first + edge_cost;
+
+                auto childNode = make_shared<DFANode>(next_dfa_state, currentNode, edge_cost);
+                currentNode->addChild(childNode);
+
+                auto handle = nodePriorityQueue_.push(make_pair(total_cost, childNode));
+                node_handles_[childNode] = handle;
+            }
+        }
+    }
+    return nullptr; // Return empty if no path is found
+}
+
+// Define the transition_cost function based on past experiences.
+int DFAManager::dfa_transition_cost(size_t from_state, size_t to_state) {
+    if (!feedback_) return DEFAULT_COST;
+    auto it = dfa_transition_costs_.find(make_pair(from_state, to_state));
+    if (it != dfa_transition_costs_.end()) {
+        // Return the stored cost if available
+        return it->second;
+    } else {
+        // Default cost if the transition has not been attempted yet
+        return DEFAULT_COST; // = 1
+    }
+}
+
+void DFAManager::update_dfa_transition_cost(shared_ptr<DFANode>& node, int cost) {
+
+    if (!feedback_) {
+        // We don't want to provide feedback when this flag is set to false.
+        return;
+    }
+
+    auto parent = node->getParent();
+    if (!parent) {
+        // This is a root node.
+        return;
+    }
+
+    // Update the cost in the cost table.
+    dfa_transition_costs_[make_pair(parent->getState(), node->getState())] = cost;
+
+    // Update the cost in the DFANode and the priority queue.
+    node->updateParentEdgeCost(cost, node_handles_, nodePriorityQueue_);
+
+    // print_node_priority_queue();
+}
+
+// Initialize all paths from the root = the start dfa state.
+void DFAManager::initialize_node_priority_queue() {
+    auto root = make_shared<DFANode>(get_start_state());
+    auto handle = nodePriorityQueue_.push(make_pair(0, root));
+    node_handles_[root] = handle;
+}
+
+void DFAManager::print_dfa_path(vector<size_t> dfa_path) const {
+    std::cout << "DFA Path:" << endl;
+    if (!dfa_path.empty()) {
+        std::cout << dfa_path.front();
+        for (auto it = next(dfa_path.begin()); it != dfa_path.end(); ++it) {
+            std::cout << " -> " << *it;
+        }
+    }
+    std::cout << endl;
+}
+
+void DFAManager::print_node_priority_queue() { 
+    cout << "Printing the priority queue..." << endl;
+    NodeHeap heapCopy = nodePriorityQueue_;  // Make a copy of the heap
+    while (!heapCopy.empty()) {
+        auto pair = heapCopy.top();
+        int cost = pair.first;
+        auto node = pair.second;
+        // Print 'cost' and any information from 'node'
+        cout << "Cost: " << cost << ", DFA state: " << node->getState() << ", cost in the DFANode: " << node->getPathCost() << endl;
+        heapCopy.pop();
+    }
+}
+
+bool DFAManager::is_transition_valid(const bdd& edge_cond, const bdd& next_state_bdd) {
+    // next_state_bdd is a full assignment
+    // edge_cond is a partial assignment
+    // check if "next_state_bdd => edge_cond"
+    bdd implication = bdd_apply(bdd_not(next_state_bdd), edge_cond, bddop_or);
+    return implication == bddtrue;
+}
+
+spot::twa_graph::edge_storage_t* DFAManager::find_transition(const bdd& next_state_bdd, size_t curr_dfa_state) {
+    // Iterate over outgoing transitions of the current DFA state
+    for (auto& edge : get_transitions(curr_dfa_state)) {
+        if (is_transition_valid(edge.cond, next_state_bdd)) {
+            // Found a valid transition
+            return &edge;
+        }
+    }
+    // If no valid transition is found
+    return nullptr;
 }

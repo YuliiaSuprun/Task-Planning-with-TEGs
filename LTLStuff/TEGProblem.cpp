@@ -5,7 +5,6 @@
 #include <sstream>
 #include <iostream>
 #include <chrono>
-#include <graphviz/gvc.h>
 
 TEGProblem::TEGProblem(const string formula_str,
             const map<string, set<GridState>> ap_mapping,
@@ -13,8 +12,8 @@ TEGProblem::TEGProblem(const string formula_str,
             const GridState& start_grid_state,
             int problem_id, bool on_the_fly, bool cache, bool feedback)
     : grid_domain_(grid_domain), start_grid_state_(start_grid_state), problem_id_(problem_id), on_the_fly_(on_the_fly), cache_(cache),
-    feedback_(feedback), bdd_dict_(make_shared<spot::bdd_dict>()),
-    dfa_manager_(bdd_dict_) { 
+    bdd_dict_(make_shared<spot::bdd_dict>()),
+    dfa_manager_(bdd_dict_, feedback) { 
 
     // Check if the start state is valid.
     if (!grid_domain_.is_valid_state(start_grid_state_)) {
@@ -48,7 +47,7 @@ TEGProblem::TEGProblem(const string formula_str,
     chrono::duration<double> elapsed_dfa = end1 - start1;
     std::cout << "time of calculating the automaton: " << elapsed_dfa.count() << " seconds" << std::endl;
 
-    // print_dfa();
+    // dfa_manager_.print_dfa();
     dfa_manager_.save_dfa(filename_);
     
     if (!on_the_fly_) {    
@@ -199,80 +198,6 @@ void TEGProblem::solve_with_full_graph() {
     }
 }
 
-shared_ptr<DFANode> TEGProblem::generate_dfa_path() {
-
-    while (!nodePriorityQueue_.empty()) {
-        auto currentNodePair = nodePriorityQueue_.top();
-        nodePriorityQueue_.pop();
-        auto currentNode = currentNodePair.second;
-        // Delete the handle for this node in the map.
-        node_handles_.erase(currentNode);
-
-        size_t current_dfa_state = currentNode->getState();
-
-        if (dfa_manager_.is_accepting(current_dfa_state)) {
-            auto dfa_trace = currentNode->getPathFromRoot();
-            cout << "Selected a DFA trace of size " << dfa_trace.size() - 1 << " and a cost of " << currentNodePair.first << endl;
-            print_dfa_path(dfa_trace);
-            return currentNode;
-        }
-
-        for (auto& edge: dfa_manager_.get_transitions(current_dfa_state)) {
-            size_t next_dfa_state = edge.dst;
-
-            if (next_dfa_state != current_dfa_state) { 
-                // Calculate the cost for this transition
-                int edge_cost = dfa_transition_cost(current_dfa_state, next_dfa_state);
-                int total_cost = currentNodePair.first + edge_cost;
-
-                auto childNode = make_shared<DFANode>(next_dfa_state, currentNode, edge_cost);
-                currentNode->addChild(childNode);
-
-                auto handle = nodePriorityQueue_.push(make_pair(total_cost, childNode));
-                node_handles_[childNode] = handle;
-            }
-        }
-    }
-    return nullptr; // Return empty if no path is found
-}
-
-
-// Define the transition_cost function based on past experiences.
-int TEGProblem::dfa_transition_cost(size_t from_state, size_t to_state) {
-    if (!feedback_) return DEFAULT_COST;
-    auto it = dfa_transition_costs_.find(make_pair(from_state, to_state));
-    if (it != dfa_transition_costs_.end()) {
-        // Return the stored cost if available
-        return it->second;
-    } else {
-        // Default cost if the transition has not been attempted yet
-        return DEFAULT_COST; // = 1
-    }
-}
-
-void TEGProblem::update_dfa_transition_cost(shared_ptr<DFANode>& node, int cost) {
-
-    if (!feedback_) {
-        // We don't want to provide feedback when this flag is set to false.
-        return;
-    }
-
-    auto parent = node->getParent();
-    if (!parent) {
-        // This is a root node.
-        return;
-    }
-
-    // Update the cost in the cost table.
-    dfa_transition_costs_[make_pair(parent->getState(), node->getState())] = cost;
-
-    // Update the cost in the DFANode and the priority queue.
-    node->updateParentEdgeCost(cost, node_handles_, nodePriorityQueue_);
-
-    // print_node_priority_queue();
-}
-
-
 void TEGProblem::generate_successors(const ProductState& prod_state) {
     size_t dfa_state = prod_state.get_dfa_state();
     GridState grid_state = prod_state.get_grid_state();
@@ -283,7 +208,9 @@ void TEGProblem::generate_successors(const ProductState& prod_state) {
         if (!grid_domain_.is_valid_state(next_grid_state)) {
             continue;
         }
-        auto dfa_transition = find_transition(next_grid_state, dfa_state);
+
+        bdd next_grid_state_bdd = get_state_bdd(next_grid_state);
+        auto dfa_transition = dfa_manager_.find_transition(next_grid_state_bdd, dfa_state);
 
         if (dfa_transition == nullptr) {
             continue;
@@ -295,31 +222,6 @@ void TEGProblem::generate_successors(const ProductState& prod_state) {
         full_product_transitions_[prod_state].push_back(ProductTransition(prod_state, next_prod_state, dfa_transition->cond, grid_action));
     }
 }
-
-bool TEGProblem::is_transition_valid(const bdd& edge_cond, const bdd& next_state_bdd) {
-    // next_state_bdd is a full assignment
-    // edge_cond is a partial assignment
-    // check if "next_state_bdd => edge_cond"
-    bdd implication = bdd_apply(bdd_not(next_state_bdd), edge_cond, bddop_or);
-    return implication == bddtrue;
-}
-
-spot::twa_graph::edge_storage_t* TEGProblem::find_transition(const GridState& next_grid_state, size_t curr_dfa_state) {
-    // Retrieve atomic propositions for next grid states
-    bdd next_grid_state_bdd = get_state_bdd(next_grid_state);
-
-    // Iterate over outgoing transitions of the current DFA state
-    for (auto& edge : dfa_manager_.get_transitions(curr_dfa_state)) {
-        if (is_transition_valid(edge.cond, next_grid_state_bdd)) {
-            // Found a valid transition
-            return &edge;
-        }
-    }
-    // If no valid transition is found
-    return nullptr;
-}
-
-
 
 void TEGProblem::realize_dfa_trace(shared_ptr<DFANode>& endTraceNode) {
 
@@ -400,7 +302,7 @@ void TEGProblem::realize_dfa_trace(shared_ptr<DFANode>& endTraceNode) {
                 cout << "Succesfully realized this transition: " << transition.in_state().get_dfa_state() << "=>" << transition.out_state().get_dfa_state() << endl; 
 
                 // Update the cost to 0 based on the success of the transition.
-                update_dfa_transition_cost(dfa_nodes.at(currentRegionIndex + 1), SUCCESS_COST);
+                dfa_manager_.update_dfa_transition_cost(dfa_nodes.at(currentRegionIndex + 1), SUCCESS_COST);
 
                 // Optimization 1: cache paths that cross the dfa states
                 if (cache_ && !transition.isCached()) {
@@ -442,7 +344,7 @@ void TEGProblem::realize_dfa_trace(shared_ptr<DFANode>& endTraceNode) {
     }
     // We failed to realize the provided dfa trace.
     // Update the cost for the dfa transition we couldn't realize.
-    update_dfa_transition_cost(dfa_nodes.at(maxRegionIndexReached + 1), FAILURE_COST);
+    dfa_manager_.update_dfa_transition_cost(dfa_nodes.at(maxRegionIndexReached + 1), FAILURE_COST);
 }
 
 vector<ProductState> TEGProblem::construct_path(const map<ProductState, vector<ProductState>>& parent_map, ProductState target_state, bool cached, size_t start_dfa_state) {
@@ -479,10 +381,7 @@ void TEGProblem::solve_with_on_the_fly_graph() {
     dfa_path_.clear();
 
     // Initialize all paths from the root = the start dfa state.
-    auto root = make_shared<DFANode>(dfa_manager_.get_start_state());
-    auto handle = nodePriorityQueue_.push(make_pair(0, root));
-    node_handles_[root] = handle;
-
+    dfa_manager_.initialize_node_priority_queue();
 
     int max_num_iters = 50; // Depends on the nature of the problem.
     int curr_iter = 0;
@@ -490,7 +389,7 @@ void TEGProblem::solve_with_on_the_fly_graph() {
     while (product_path_.empty() && curr_iter < max_num_iters) {
         cout << "=== Iteration " << curr_iter++ << " ===" << endl;
         // Pick a "likely" DFA trace that ends in the acceptance state.
-        auto endTraceNode = generate_dfa_path();
+        auto endTraceNode = dfa_manager_.generate_dfa_path();
 
         if (!endTraceNode) {
             // No more accepted DFA traces were found.
@@ -565,25 +464,7 @@ void TEGProblem::print_grid_path() const {
 }
 
 void TEGProblem::print_dfa_path() const {
-    std::cout << "DFA Path:" << endl;
-    if (!dfa_path_.empty()) {
-        std::cout << dfa_path_.front();
-        for (auto it = next(dfa_path_.begin()); it != dfa_path_.end(); ++it) {
-            std::cout << " -> " << *it;
-        }
-    }
-    std::cout << endl;
-}
-
-void TEGProblem::print_dfa_path(vector<size_t> dfa_path) const {
-    std::cout << "DFA Path:" << endl;
-    if (!dfa_path.empty()) {
-        std::cout << dfa_path.front();
-        for (auto it = next(dfa_path.begin()); it != dfa_path.end(); ++it) {
-            std::cout << " -> " << *it;
-        }
-    }
-    std::cout << endl;
+    dfa_manager_.print_dfa_path(dfa_path_);
 }
 
 map<string, set<GridState>> TEGProblem::get_ap_mapping() const {
@@ -593,17 +474,3 @@ map<string, set<GridState>> TEGProblem::get_ap_mapping() const {
 string TEGProblem::get_filename() const {
     return filename_;
 }
-
-void TEGProblem::print_node_priority_queue() { 
-    cout << "Printing the priority queue..." << endl;
-    NodeHeap heapCopy = nodePriorityQueue_;  // Make a copy of the heap
-    while (!heapCopy.empty()) {
-        auto pair = heapCopy.top();
-        int cost = pair.first;
-        auto node = pair.second;
-        // Print 'cost' and any information from 'node'
-        cout << "Cost: " << cost << ", DFA state: " << node->getState() << ", cost in the DFANode: " << node->getPathCost() << endl;
-        heapCopy.pop();
-    }
-}
-
