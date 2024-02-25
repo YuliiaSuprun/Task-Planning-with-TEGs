@@ -160,8 +160,11 @@ void TEGProblem::realize_dfa_trace(shared_ptr<DFANode>& endTraceNode) {
 
     size_t dfa_start_state = dfa_trace.front();
     ProductState start_state(start_domain_state_, dfa_start_state);
-    map<size_t, deque<ProductState>> regionQueues;
-    regionQueues[dfa_start_state].push_back(start_state);
+    // TODO: change to a map of priority queues!!!  
+    
+    map<size_t, priority_queue<pair<int, ProductState>, vector<pair<int, ProductState>>, greater<pair<int, ProductState>>>> regionQueues;
+
+    regionQueues[dfa_start_state].push(make_pair(SUCCESS_COST, start_state));
 
     size_t currentRegionIndex = 0;
     size_t maxRegionIndexReached = 0;
@@ -185,8 +188,10 @@ void TEGProblem::realize_dfa_trace(shared_ptr<DFANode>& endTraceNode) {
             cout << "Trying to realize this transition: " << curr_dfa_state << "=>" << dfa_trace.at(currentRegionIndex+1) << endl;
         }
         // Queue is not empty!
-        ProductState current_state = queue.front();
-        queue.pop_front();
+        auto current_state_pair = queue.top();
+        ProductState current_state = current_state_pair.second;
+        cout << "Popped the state " << current_state << " with score " << current_state_pair.first << endl;
+        queue.pop();
 
         // Check if state was expanded?
         // If not, then generate successors for this state!
@@ -233,9 +238,16 @@ void TEGProblem::realize_dfa_trace(shared_ptr<DFANode>& endTraceNode) {
                     // Now we create a transition and add it to a product graph.
                     // Serves as a "skip-connection".
                     product_manager_->cache_path(path_to_cache_reversed, transition.dfa_edge_condition());
+
+                    // TODO: cache it as a path between modalities in DomainManager (can be reused for other TEG problems).
                 }
 
                 currentRegionIndex++;
+
+                // TODO: compute landmarks for the next DFA region:
+                // 1) Sample k points in the next equivalence region (aka landmarks). 
+                // 2) Define heuristic as a distance to the closest sampled point.
+                // 3) Not an admissible heuristic but we don't care about optimality of the path, so it's fine.
 
                 // Remember the last dfa state we were able to reach.
                 if (maxRegionIndexReached < currentRegionIndex) {
@@ -252,8 +264,10 @@ void TEGProblem::realize_dfa_trace(shared_ptr<DFANode>& endTraceNode) {
 
             } 
 
+            // TODO: compute the heuristic score for this state and push it into the queue.
+
             // Push this new product state onto the corresponding queue.
-            regionQueues[next_dfa_state].push_back(next_state);
+            regionQueues[next_dfa_state].push(make_pair(current_state_pair.first + DEFAULT_COST, next_state));
             // This state has been visited now!
             visited.insert(next_state);
         }
