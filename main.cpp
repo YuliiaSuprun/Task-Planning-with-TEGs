@@ -29,9 +29,9 @@ int main() {
     size_t R = 20 * scale + 1;
     size_t C = 20 * scale + 1;
 
-    GridWorldDomain domain(R, C);
+    auto domain = make_shared<GridWorldDomain>(R, C);
     // Can create domain obstacles.
-    domain.create_random_obstacle_matrix(0.1);
+    domain->create_random_obstacle_matrix(0.1);
 
     // Define default locations for atomic propositions
     GridState goal(1, 19);
@@ -89,7 +89,7 @@ int main() {
         if (!solution_path.empty()) {
             cout << "Solution for problem_id=" << problem_id << " is:" << endl;
             problem.print_product_path();
-            problem.print_grid_path();
+            problem.print_domain_path();
             problem.print_dfa_path();
             GridWorldPlotter plotter(domain);
             plotter.visualize_path(problem);

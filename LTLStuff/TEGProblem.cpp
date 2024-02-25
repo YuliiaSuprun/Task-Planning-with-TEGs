@@ -8,16 +8,19 @@
 
 TEGProblem::TEGProblem(const string formula_str,
             const map<string, set<GridState>> ap_mapping,
-            const GridWorldDomain& grid_domain,
-            const GridState& start_grid_state,
+            const shared_ptr<GridWorldDomain> domain,
+            const GridState& start_domain_state,
             int problem_id, bool on_the_fly, bool cache, bool feedback)
-    : grid_domain_(grid_domain), start_grid_state_(start_grid_state), problem_id_(problem_id), on_the_fly_(on_the_fly), cache_(cache),
+    : domain_(domain), start_domain_state_(start_domain_state), problem_id_(problem_id), on_the_fly_(on_the_fly), cache_(cache),
     bdd_dict_(make_shared<spot::bdd_dict>()),
-    dfa_manager_(bdd_dict_, feedback) { 
+    dfa_manager_(make_shared<DFAManager>(bdd_dict_, feedback)),
+    domain_manager_(make_shared<DomainManager>(bdd_dict_, domain_, ap_mapping)),
+    product_manager_(make_shared<ProductManager>(domain_manager_, dfa_manager_))
+    { 
 
     // Check if the start state is valid.
-    if (!grid_domain_.is_valid_state(start_grid_state_)) {
-        cerr << "ERROR: Invalid start state in the GridWorldDomain" << endl;
+    if (!domain_->is_valid_state(start_domain_state_)) {
+        cerr << "ERROR: Invalid start state in the task domain!" << endl;
     }
 
     // Register all the propositions you need to bdd_dict.
@@ -41,19 +44,19 @@ TEGProblem::TEGProblem(const string formula_str,
     formula_ = LTLFormula(formula_str, ap_mapping);
 
     // Compute the DFA corresponding to the given LTL formula.
-    dfa_manager_.construct_dfa(formula_);
+    dfa_manager_->construct_dfa(formula_);
 
     auto end1 = chrono::high_resolution_clock::now();
     chrono::duration<double> elapsed_dfa = end1 - start1;
     std::cout << "time of calculating the automaton: " << elapsed_dfa.count() << " seconds" << std::endl;
 
-    // dfa_manager_.print_dfa();
-    dfa_manager_.save_dfa(filename_);
+    // dfa_manager_->print_dfa();
+    dfa_manager_->save_dfa(filename_);
     
     if (!on_the_fly_) {    
         auto start2 = chrono::high_resolution_clock::now();
         // Compute the product graph of DFA and GridWorldDomain.
-        compute_product();
+        product_manager_->compute_full_product();
 
         auto end2 = chrono::high_resolution_clock::now();
         chrono::duration<double> elapsed_product = end2 - start2;
@@ -67,84 +70,11 @@ TEGProblem::~TEGProblem() {
     // When the reference count drops to zero, the destructor for the spot::bdd_dict will be triggered.
 }
 
-void TEGProblem::compute_product() {
-    // Clear previous data.
-    full_product_states_.clear();
-    full_product_transitions_.clear();
-
-    // Iterate over all grid world states and DFA states to compute product states.
-    for (size_t r = 0; r < grid_domain_.R(); ++r) {
-        for (size_t c = 0; c < grid_domain_.C(); ++c) {
-            GridState grid_state(r, c);
-            // States in dfa are always numbered from 0 to (num_states-1)
-            for (size_t dfa_state = 0; dfa_state < dfa_manager_.get_num_states(); ++dfa_state) {
-                ProductState ps(grid_state, dfa_state);
-                full_product_states_.push_back(ps);
-            }
-        }
-    }
-    std::cout << full_product_states_.size() << " product states were generated" << endl;
-
-    // Compute transitions in the product based on valid transitions in both the GridWorld and the DFA.
-    for (const auto& prod_state : full_product_states_) {
-        generate_successors(prod_state);
-    }
-}
-
-set<string> TEGProblem::atomic_props(const GridState& grid_state) {
-    set<string> props;
-
-    // Iterate over the ap_mapping to check which atomic propositions hold true for the grid_state
-    for (const auto& prop_pair : formula_.get_ap_mapping()) {
-        const std::string& ap = prop_pair.first;
-        const std::set<GridState>& ap_states = prop_pair.second;
-
-        if (ap_states.find(grid_state) != ap_states.end()) {
-            props.insert(ap);
-        }
-    }
-
-    return props;
-}
-
-/*
-    Return the BDD representation (from the BDD package) of the logical
-    conjunction of the atomic propositions (positive and negative).
-*/
-bdd TEGProblem::get_state_bdd(const GridState& grid_state) {
-
-    // Start with a BDD representing true
-    bdd result = bddtrue;
-
-    // Iterate over the ap_mapping to determine whether each ap is + or -
-    for (const auto& prop_pair : formula_.get_ap_mapping()) {
-        string prop = prop_pair.first;
-        spot::formula prop_formula = spot::formula::ap(prop);
-        int var_num = bdd_dict_->varnum(prop_formula);
-        if (var_num == -1) {
-            cerr << "ERROR: proposition is not registered!" << endl;
-        }
-        bdd prop_bdd = bdd_ithvar(var_num);
-
-        auto ap_states = prop_pair.second;
-
-        if (ap_states.find(grid_state) == ap_states.end()) {
-            // prop is absent (negative form)
-            prop_bdd = bdd_not(prop_bdd);
-        }   // Otherwise, prop has a positive form. Do nothing.
-
-        // Logical AND with the result
-        result &= prop_bdd;
-    }
-
-    return result;
-}
-
 vector<ProductState> TEGProblem::solve() {
     product_path_.clear();
 
-    size_t dfa_start_state = dfa_manager_.get_start_state();
-    if (dfa_manager_.is_accepting(dfa_start_state)) {
+    size_t dfa_start_state = dfa_manager_->get_start_state();
+    if (dfa_manager_->is_accepting_state(dfa_start_state)) {
         cerr << "ERROR: DFA has a single state. LTL formula is not descriptive enough." << endl;
         return vector<ProductState>();
     }
@@ -159,10 +89,10 @@ vector<ProductState> TEGProblem::solve() {
 
 void TEGProblem::solve_with_full_graph() {
 
-    size_t dfa_start_state = dfa_manager_.get_start_state();
+    size_t dfa_start_state = dfa_manager_->get_start_state();
 
     deque<ProductState> queue;
-    queue.emplace_back(start_grid_state_, dfa_start_state);
+    queue.emplace_back(start_domain_state_, dfa_start_state);
 
     set<ProductState> visited;
     visited.insert(queue.front());
@@ -173,14 +103,14 @@ void TEGProblem::solve_with_full_graph() {
         ProductState current_state = queue.front();
         queue.pop_front();
 
-        for (const auto& transition : full_product_transitions_[current_state]) {
+        for (const auto& transition : product_manager_->get_transitions(current_state)) {
             // Get the product state where this transition leads. 
             ProductState next_state = transition.out_state();
 
             // Get the next dfa state.
             size_t next_dfa_state = next_state.get_dfa_state();
 
-            if (dfa_manager_.is_accepting(next_dfa_state)) {
+            if (dfa_manager_->is_accepting_state(next_dfa_state)) {
                 // Case 1: This next state is accepting. Solution is found!
                 parent_map.emplace(next_state, transition.path());
                 product_path_ = construct_path(parent_map, next_state);
@@ -198,28 +128,28 @@ void TEGProblem::solve_with_full_graph() {
     }
 }
 
-void TEGProblem::generate_successors(const ProductState& prod_state) {
-    size_t dfa_state = prod_state.get_dfa_state();
-    GridState grid_state = prod_state.get_grid_state();
+void TEGProblem::solve_with_on_the_fly_graph() {
 
-    // Add transitions based on "primitive" actions in the domain.
-    for (const auto& action : grid_domain_.get_actions()) {
-        GridState next_grid_state = grid_state.apply(action);
-        if (!grid_domain_.is_valid_state(next_grid_state)) {
-            continue;
+    dfa_path_.clear();
+
+    // Initialize all paths from the root = the start dfa state.
+    dfa_manager_->initialize_node_priority_queue();
+
+    int max_num_iters = 50; // Depends on the nature of the problem.
+    int curr_iter = 0;
+
+    while (product_path_.empty() && curr_iter < max_num_iters) {
+        cout << "=== Iteration " << curr_iter++ << " ===" << endl;
+        // Pick a "likely" DFA trace that ends in the acceptance state.
+        auto endTraceNode = dfa_manager_->generate_dfa_path();
+
+        if (!endTraceNode) {
+            // No more accepted DFA traces were found.
+            break;
         }
 
-        bdd next_grid_state_bdd = get_state_bdd(next_grid_state);
-        auto dfa_transition = dfa_manager_.find_transition(next_grid_state_bdd, dfa_state);
-
-        if (dfa_transition == nullptr) {
-            continue;
-        }
-
-        size_t next_dfa_state = dfa_transition->dst;
-        ProductState next_prod_state(next_grid_state, next_dfa_state);
-        auto grid_action = make_shared<GridAction>(action);
-        full_product_transitions_[prod_state].push_back(ProductTransition(prod_state, next_prod_state, dfa_transition->cond, grid_action));
+        // Attempt to realize this trace in the task domain.
+        realize_dfa_trace(endTraceNode);
     }
 }
 
@@ -238,7 +168,7 @@ void TEGProblem::realize_dfa_trace(shared_ptr<DFANode>& endTraceNode) {
     }
 
     size_t dfa_start_state = dfa_trace.front();
-    ProductState start_state(start_grid_state_, dfa_start_state);
+    ProductState start_state(start_domain_state_, dfa_start_state);
     map<size_t, deque<ProductState>> regionQueues;
     regionQueues[dfa_start_state].push_back(start_state);
 
@@ -269,12 +199,12 @@ void TEGProblem::realize_dfa_trace(shared_ptr<DFANode>& endTraceNode) {
 
         // Check if state was expanded?
         // If not, then generate successors for this state!
-        if (full_product_transitions_.count(current_state) == 0) {
+        if (product_manager_->state_not_expanded(current_state)) {
             // Expand the state.
-            generate_successors(current_state);
+            product_manager_->generate_successors(current_state);
         }
 
-        for (const auto& transition : full_product_transitions_.at(current_state)) {
+        for (const auto& transition : product_manager_->get_transitions(current_state)) {
             // Get the product state where this transition leads. 
             ProductState next_state = transition.out_state();
 
@@ -302,21 +232,16 @@ void TEGProblem::realize_dfa_trace(shared_ptr<DFANode>& endTraceNode) {
                 cout << "Succesfully realized this transition: " << transition.in_state().get_dfa_state() << "=>" << transition.out_state().get_dfa_state() << endl; 
 
                 // Update the cost to 0 based on the success of the transition.
-                dfa_manager_.update_dfa_transition_cost(dfa_nodes.at(currentRegionIndex + 1), SUCCESS_COST);
+                dfa_manager_->update_dfa_transition_cost(dfa_nodes.at(currentRegionIndex + 1), SUCCESS_COST);
 
                 // Optimization 1: cache paths that cross the dfa states
                 if (cache_ && !transition.isCached()) {
 
                     vector<ProductState> path_to_cache_reversed = construct_path(parent_map, next_state, true, curr_dfa_state);
-                
-                    // Find the source node of this transition.
-                    ProductState start_state = path_to_cache_reversed.back();
 
-                    // Create compound action.
-                    auto compound_action = make_shared<CompoundAction>(path_to_cache_reversed);
                     // Now we create a transition and add it to a product graph.
                     // Serves as a "skip-connection".
-                    full_product_transitions_[start_state].push_back(ProductTransition(start_state, next_state, transition.dfa_edge_condition(), compound_action, true));
+                    product_manager_->cache_path(path_to_cache_reversed, transition.dfa_edge_condition());
                 }
 
                 currentRegionIndex++;
@@ -344,7 +269,7 @@ void TEGProblem::realize_dfa_trace(shared_ptr<DFANode>& endTraceNode) {
     }
     // We failed to realize the provided dfa trace.
     // Update the cost for the dfa transition we couldn't realize.
-    dfa_manager_.update_dfa_transition_cost(dfa_nodes.at(maxRegionIndexReached + 1), FAILURE_COST);
+    dfa_manager_->update_dfa_transition_cost(dfa_nodes.at(maxRegionIndexReached + 1), FAILURE_COST);
 }
 
 vector<ProductState> TEGProblem::construct_path(const map<ProductState, vector<ProductState>>& parent_map, ProductState target_state, bool cached, size_t start_dfa_state) {
@@ -375,38 +300,12 @@ vector<ProductState> TEGProblem::construct_path(const map<ProductState, vector<P
     return path;
 }
 
-void TEGProblem::solve_with_on_the_fly_graph() {
-
-    full_product_transitions_.clear();
-    dfa_path_.clear();
-
-    // Initialize all paths from the root = the start dfa state.
-    dfa_manager_.initialize_node_priority_queue();
-
-    int max_num_iters = 50; // Depends on the nature of the problem.
-    int curr_iter = 0;
-
-    while (product_path_.empty() && curr_iter < max_num_iters) {
-        cout << "=== Iteration " << curr_iter++ << " ===" << endl;
-        // Pick a "likely" DFA trace that ends in the acceptance state.
-        auto endTraceNode = dfa_manager_.generate_dfa_path();
-
-        if (!endTraceNode) {
-            // No more accepted DFA traces were found.
-            break;
-        }
-
-        // Attempt to realize this trace in the task domain.
-        realize_dfa_trace(endTraceNode);
-    }
-}
-
 void TEGProblem::save_paths() {
-    grid_path_.clear();
+    domain_path_.clear();
     dfa_path_.clear();
     int prev_dfa_state = -1;
     for(const auto& ps : product_path_) {
-        grid_path_.push_back(ps.get_grid_state());
+        domain_path_.push_back(ps.get_domain_state());
         int curr_dfa_state = ps.get_dfa_state();
         if (prev_dfa_state != curr_dfa_state) {
             dfa_path_.push_back(curr_dfa_state);
@@ -415,30 +314,12 @@ void TEGProblem::save_paths() {
     }
 }
 
-vector<GridState> TEGProblem::get_grid_path() const {
-    return grid_path_;
+vector<GridState> TEGProblem::get_domain_path() const {
+    return domain_path_;
 }
 
 vector<size_t> TEGProblem::get_dfa_path() const {
     return dfa_path_;
-}
-
-void TEGProblem::print_product_transitions(int in_dfa_state, int out_dfa_state) {
-    std::cout << "Product Transitions:" << endl;
-    for (const auto& transition_entry : full_product_transitions_) {
-        const ProductState& source_state = transition_entry.first;
-        if (in_dfa_state == -1 || static_cast<size_t>(in_dfa_state) == source_state.get_dfa_state()) {
-            std::cout << source_state << " -> "; 
-            const auto& transitions = transition_entry.second;
-            for (const auto& transition : transitions) {
-                ProductState target_state = transition.out_state();
-                if (out_dfa_state == -1 || static_cast<size_t>(out_dfa_state) == target_state.get_dfa_state()) {
-                    std::cout << target_state << ", ";
-                }
-            }
-            std::cout << endl;
-        }
-    }
 }
 
 void TEGProblem::print_product_path() const {
@@ -452,11 +333,11 @@ void TEGProblem::print_product_path() const {
     std::cout << endl;
 }
 
-void TEGProblem::print_grid_path() const {
+void TEGProblem::print_domain_path() const {
     std::cout << "Grid Path:" << endl;
-    if (!grid_path_.empty()) {
-        std::cout << grid_path_.front();
-        for (auto it = next(grid_path_.begin()); it != grid_path_.end(); ++it) {
+    if (!domain_path_.empty()) {
+        std::cout << domain_path_.front();
+        for (auto it = next(domain_path_.begin()); it != domain_path_.end(); ++it) {
             std::cout << " -> " << *it;
         }
     }
@@ -464,7 +345,7 @@ void TEGProblem::print_grid_path() const {
 }
 
 void TEGProblem::print_dfa_path() const {
-    dfa_manager_.print_dfa_path(dfa_path_);
+    dfa_manager_->print_dfa_path(dfa_path_);
 }
 
 map<string, set<GridState>> TEGProblem::get_ap_mapping() const {

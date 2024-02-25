@@ -1,6 +1,6 @@
 #include "GridWorldPlotter.h"
 
-GridWorldPlotter::GridWorldPlotter(GridWorldDomain grid_domain, int windowWidth, int windowHeight) : grid_domain_{grid_domain}, grid_size_{grid_domain.R()}, WINDOW_WIDTH{windowWidth}, WINDOW_HEIGHT{windowHeight} {
+GridWorldPlotter::GridWorldPlotter(const shared_ptr<GridWorldDomain> grid_domain, int windowWidth, int windowHeight) : grid_domain_{grid_domain}, grid_size_{grid_domain->R()}, WINDOW_WIDTH{windowWidth}, WINDOW_HEIGHT{windowHeight} {
     if (grid_size_ <= 0) {
         cerr << "ERROR: invalid grid size value!" << endl;
         return;
@@ -45,7 +45,7 @@ void GridWorldPlotter::visualize_path(const TEGProblem& problem) {
 
             GridState curr_state(i, j);
 
-            if (grid_domain_.is_obstacle(curr_state)) {
+            if (grid_domain_->is_obstacle(curr_state)) {
                 cell.setFillColor(sf::Color::Black);
             } else {
                 cell.setFillColor(sf::Color::White);
@@ -54,7 +54,7 @@ void GridWorldPlotter::visualize_path(const TEGProblem& problem) {
         }
     }
 
-    auto grid_path = problem.get_grid_path();
+    auto grid_path = problem.get_domain_path();
 
     // Draw the path to renderTexture
     for (size_t i = 0; i < grid_path.size(); ++i) {

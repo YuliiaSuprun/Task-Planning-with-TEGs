@@ -36,7 +36,7 @@ public:
     size_t get_num_states() const;
     size_t get_start_state() const;
     spot::internal::state_out<spot::digraph<spot::twa_graph_state, spot::twa_graph_edge_data>> get_transitions(size_t state) const;
-    bool is_accepting(size_t state) const;
+    bool is_accepting_state(size_t state) const;
 
     bdd get_self_edge_cond(size_t dfa_state) const;
 
@@ -64,6 +64,8 @@ private:
     // A priority queue with a pair of (cost, DFANode)
     NodeHeap nodePriorityQueue_;
 
+    // Map to store the handles to the entries in the priority queue.
+    // We need them to modify the keys in the queue depending on feedback.
     map<shared_ptr<DFANode>, NodeHeap::handle_type> node_handles_;
 
     // Map to store the cost of transitions

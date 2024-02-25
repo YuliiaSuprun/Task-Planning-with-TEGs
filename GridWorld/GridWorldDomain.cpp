@@ -176,3 +176,44 @@ set<GridState> GridWorldDomain::get_obstacle_set() const {
     }
     return obstacles_set;
 }
+
+const vector<GridState>& GridWorldDomain::get_all_states() {
+    if (all_domain_states_.empty()) {
+        // Pre-allocate enough memory for the vector.
+        all_domain_states_.reserve(R_ * C_);
+        for (size_t r = 0; r < R_; ++r) {
+            for (size_t c = 0; c < C_; ++c) {
+                all_domain_states_.emplace_back(r, c);
+            }
+        }
+    }
+    return all_domain_states_;
+}
+
+const vector<GridAction>& GridWorldDomain::get_actions(const GridState& state) const {
+    (void)state; // To avoid compiler's warnings.
+    return actions_;
+}
+
+const vector<GridState> GridWorldDomain::get_successor_states(GridState& curr_state) {
+    vector<GridState> successor_states;
+    for (const auto& action : get_actions(curr_state)) {
+        GridState next_state = curr_state.apply(action);
+        if (is_valid_state(next_state)) {
+            successor_states.push_back(next_state);
+        }
+    }
+    return successor_states;
+}
+
+const vector<pair<GridState, GridAction>> GridWorldDomain::get_successor_state_action_pairs(GridState& curr_state) {
+
+    vector<pair<GridState, GridAction>> successor_state_action_pairs;
+    for (const auto& action : get_actions(curr_state)) {
+        GridState next_state = curr_state.apply(action);
+        if (is_valid_state(next_state)) {
+            successor_state_action_pairs.emplace_back(next_state, action);
+        }
+    }
+    return successor_state_action_pairs;
+}

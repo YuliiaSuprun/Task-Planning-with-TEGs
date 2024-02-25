@@ -123,7 +123,7 @@ size_t DFAManager::get_start_state() const {
     return dfa_->get_init_state_number();
 }
 
-bool DFAManager::is_accepting(size_t state) const {
+bool DFAManager::is_accepting_state(size_t state) const {
     return dfa_->state_is_accepting(state);
 }
 
@@ -153,7 +153,7 @@ shared_ptr<DFANode> DFAManager::generate_dfa_path() {
 
         size_t current_dfa_state = currentNode->getState();
 
-        if (is_accepting(current_dfa_state)) {
+        if (is_accepting_state(current_dfa_state)) {
             auto dfa_trace = currentNode->getPathFromRoot();
             cout << "Selected a DFA trace of size " << dfa_trace.size() - 1 << " and a cost of " << currentNodePair.first << endl;
             print_dfa_path(dfa_trace);
@@ -254,6 +254,7 @@ bool DFAManager::is_transition_valid(const bdd& edge_cond, const bdd& next_state
 }
 
 spot::twa_graph::edge_storage_t* DFAManager::find_transition(const bdd& next_state_bdd, size_t curr_dfa_state) {
+
     // Iterate over outgoing transitions of the current DFA state
     for (auto& edge : get_transitions(curr_dfa_state)) {
         if (is_transition_valid(edge.cond, next_state_bdd)) {

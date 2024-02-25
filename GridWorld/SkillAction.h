@@ -37,12 +37,12 @@ public:
         } else {
             vector<ProductState> reconstructed_path;
             for (auto it = next(path_.begin()); it != (path_.end() - 1); ++it) {
-                reconstructed_path.emplace_back(it->get_grid_state(), dfa_start_state);
+                reconstructed_path.emplace_back(it->get_domain_state(), dfa_start_state);
             }
 
             if (with_end) {
                 // Add the new end dfa state.
-                reconstructed_path.emplace_back(path_.back().get_grid_state(), dfa_end_state);
+                reconstructed_path.emplace_back(path_.back().get_domain_state(), dfa_end_state);
             }    
             return reconstructed_path;
         }
@@ -52,11 +52,11 @@ public:
     bdd out_edge_cond() const { return out_edge_cond_; }
 
     GridState start_grid_state() const {
-        return path_.front().get_grid_state();
+        return path_.front().get_domain_state();
     }
 
     GridState dest_grid_state() const {
-        return path_.back().get_grid_state();
+        return path_.back().get_domain_state();
     }
 
     bool relaxedMatch(bdd new_self_edge_cond, bdd new_out_edge_cond) const {

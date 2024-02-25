@@ -7,13 +7,13 @@
 
 class GridWorldPlotter {
 public:
-    GridWorldPlotter(GridWorldDomain grid_domain, int windowWidth=800, int windowHeight=800);
+    GridWorldPlotter(const shared_ptr<GridWorldDomain> grid_domain, int windowWidth=800, int windowHeight=800);
 
     void visualize_path(const TEGProblem& problem);
 
 private:
 
-    GridWorldDomain grid_domain_;
+    shared_ptr<GridWorldDomain> grid_domain_;
     size_t grid_size_;
     const int WINDOW_WIDTH;
     const int WINDOW_HEIGHT;
