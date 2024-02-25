@@ -7,6 +7,7 @@
 #include "ProductTransition.h"
 #include "LTLFormula.h"
 #include "DFANode.h"
+#include "DFAManager.h"
 #include "Constants.h"
 
 #include <spot/tl/formula.hh>
@@ -54,15 +55,11 @@ public:
 private:
     set<string> atomic_props(const GridState& grid_state);
     bdd get_state_bdd(const GridState& grid_state);
-    shared_ptr<spot::twa_graph> convert_to_dfa(const LTLFormula& formula);
-    void save_dfa(const shared_ptr<spot::twa_graph>& dfa);
     void compute_product();
     void solve_with_full_graph();
     void solve_with_on_the_fly_graph();
     void save_paths();
-    void print_dfa();
     void print_product_transitions(int in_dfa_state=-1, int out_dfa_state=-1);
-    bdd get_self_edge_cond(size_t dfa_state);
 
     shared_ptr<DFANode> generate_dfa_path();
     void generate_successors(const ProductState& prod_state);
@@ -89,7 +86,9 @@ private:
     bool feedback_;
 
     // DFA corresponding to LTL formula.
-    shared_ptr<spot::twa_graph> dfa_;
+    // shared_ptr<spot::twa_graph> dfa_;
+    spot::bdd_dict_ptr bdd_dict_;
+    DFAManager dfa_manager_;
 
     // Nodes and edges in the product graph.
     vector<ProductState> full_product_states_;
@@ -111,7 +110,6 @@ private:
     vector<size_t> dfa_path_;
 
     string filename_;
-    spot::bdd_dict_ptr bdd_dict_;
 };
 
 #endif // TEG_TASK_H

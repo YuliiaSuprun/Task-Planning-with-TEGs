@@ -13,17 +13,15 @@ TEGProblem::TEGProblem(const string formula_str,
             const GridState& start_grid_state,
             int problem_id, bool on_the_fly, bool cache, bool feedback)
     : grid_domain_(grid_domain), start_grid_state_(start_grid_state), problem_id_(problem_id), on_the_fly_(on_the_fly), cache_(cache),
-    feedback_(feedback) { 
+    feedback_(feedback), bdd_dict_(make_shared<spot::bdd_dict>()),
+    dfa_manager_(bdd_dict_) { 
 
     // Check if the start state is valid.
     if (!grid_domain_.is_valid_state(start_grid_state_)) {
         cerr << "ERROR: Invalid start state in the GridWorldDomain" << endl;
     }
 
-    // Create a bdd dict.
-    bdd_dict_ = make_shared<spot::bdd_dict>();
-
-    // Register all the propositions you need here.
+    // Register all the propositions you need to bdd_dict.
     for (const auto& prop_pair : ap_mapping) {
         string prop = prop_pair.first;
         spot::formula prop_formula = spot::formula::ap(prop);
@@ -44,14 +42,14 @@ TEGProblem::TEGProblem(const string formula_str,
     formula_ = LTLFormula(formula_str, ap_mapping);
 
     // Compute the DFA corresponding to the given LTL formula.
-    dfa_ = convert_to_dfa(formula_);
+    dfa_manager_.construct_dfa(formula_);
 
     auto end1 = chrono::high_resolution_clock::now();
     chrono::duration<double> elapsed_dfa = end1 - start1;
     std::cout << "time of calculating the automaton: " << elapsed_dfa.count() << " seconds" << std::endl;
 
     // print_dfa();
-    save_dfa(dfa_);
+    dfa_manager_.save_dfa(filename_);
     
     if (!on_the_fly_) {    
         auto start2 = chrono::high_resolution_clock::now();
@@ -70,58 +68,6 @@ TEGProblem::~TEGProblem() {
     // When the reference count drops to zero, the destructor for the spot::bdd_dict will be triggered.
 }
 
-
-shared_ptr<spot::twa_graph> TEGProblem::convert_to_dfa(const LTLFormula& formula) {
-    spot::formula spot_formula = formula.get_spot_formula();
-    if (spot_formula == nullptr) {
-        cerr << "Failed to parse the LTL formula" << endl;
-        return nullptr;
-    }
-    // Create a translator instance. 
-    spot::translator trans(bdd_dict_);
-    // Set a type to BA (Büchi Automaton).
-    trans.set_type(spot::postprocessor::Buchi);
-    // Small (default) and Deterministic are exclusive choices for set_pref().
-    // Indicate whether a smaller non-deterministic automaton should be
-    // preferred over a deterministic automaton (no guarantees tho).
-    trans.set_pref(spot::postprocessor::Deterministic); 
-    // The automaton must use a state-based acceptance.
-    trans.set_pref(spot::postprocessor::SBAcc);
-    // Translate LTL formula to a DFA using Spot tranlsator.
-    spot::twa_graph_ptr translated_dfa = trans.run(spot::from_ltlf(spot_formula));
-
-    translated_dfa = spot::to_finite(translated_dfa);
-
-    return translated_dfa;
-}
-
-void TEGProblem::save_dfa(const shared_ptr<spot::twa_graph>& dfa) {
-
-    string dot_filename = filename_ + ".dot";
-    string png_filename = filename_ + ".png";
-
-    ofstream out(dot_filename);
-    spot::print_dot(out, dfa);
-    out.close();
-
-    // Render the DFA dot to an image.
-    GVC_t* gvc = gvContext();
-    FILE* file = fopen(dot_filename.c_str(), "r");
-    if (!file) {
-        cerr << "Failed to open " << dot_filename << " for reading." << endl;
-        return;
-    }
-
-    Agraph_t* graph = agread(file, 0);
-    gvLayout(gvc, graph, "dot");
-    gvRenderFilename(gvc, graph, "png", png_filename.c_str());
-    gvFreeLayout(gvc, graph);
-    agclose(graph);
-    gvFreeContext(gvc);
-
-    fclose(file);
-}
-
 void TEGProblem::compute_product() {
     // Clear previous data.
     full_product_states_.clear();
@@ -132,7 +78,7 @@ void TEGProblem::compute_product() {
         for (size_t c = 0; c < grid_domain_.C(); ++c) {
             GridState grid_state(r, c);
             // States in dfa are always numbered from 0 to (num_states-1)
-            for (size_t dfa_state = 0; dfa_state < dfa_->num_states(); ++dfa_state) {
+            for (size_t dfa_state = 0; dfa_state < dfa_manager_.get_num_states(); ++dfa_state) {
                 ProductState ps(grid_state, dfa_state);
                 full_product_states_.push_back(ps);
             }
@@ -198,8 +144,8 @@ bdd TEGProblem::get_state_bdd(const GridState& grid_state) {
 vector<ProductState> TEGProblem::solve() {
     product_path_.clear();
 
-    size_t dfa_start_state = dfa_->get_init_state_number();
-    if (dfa_->state_is_accepting(dfa_start_state)) {
+    size_t dfa_start_state = dfa_manager_.get_start_state();
+    if (dfa_manager_.is_accepting(dfa_start_state)) {
         cerr << "ERROR: DFA has a single state. LTL formula is not descriptive enough." << endl;
         return vector<ProductState>();
     }
@@ -214,7 +160,7 @@ vector<ProductState> TEGProblem::solve() {
 
 void TEGProblem::solve_with_full_graph() {
 
-    size_t dfa_start_state = dfa_->get_init_state_number();
+    size_t dfa_start_state = dfa_manager_.get_start_state();
 
     deque<ProductState> queue;
     queue.emplace_back(start_grid_state_, dfa_start_state);
@@ -235,7 +181,7 @@ void TEGProblem::solve_with_full_graph() {
             // Get the next dfa state.
             size_t next_dfa_state = next_state.get_dfa_state();
 
-            if (dfa_->state_is_accepting(next_dfa_state)) {
+            if (dfa_manager_.is_accepting(next_dfa_state)) {
                 // Case 1: This next state is accepting. Solution is found!
                 parent_map.emplace(next_state, transition.path());
                 product_path_ = construct_path(parent_map, next_state);
@@ -264,14 +210,14 @@ shared_ptr<DFANode> TEGProblem::generate_dfa_path() {
 
         size_t current_dfa_state = currentNode->getState();
 
-        if (dfa_->state_is_accepting(current_dfa_state)) {
+        if (dfa_manager_.is_accepting(current_dfa_state)) {
             auto dfa_trace = currentNode->getPathFromRoot();
             cout << "Selected a DFA trace of size " << dfa_trace.size() - 1 << " and a cost of " << currentNodePair.first << endl;
             print_dfa_path(dfa_trace);
             return currentNode;
         }
 
-        for (auto& edge: dfa_->out(current_dfa_state)) {
+        for (auto& edge: dfa_manager_.get_transitions(current_dfa_state)) {
             size_t next_dfa_state = edge.dst;
 
             if (next_dfa_state != current_dfa_state) { 
@@ -363,7 +309,7 @@ spot::twa_graph::edge_storage_t* TEGProblem::find_transition(const GridState& ne
     bdd next_grid_state_bdd = get_state_bdd(next_grid_state);
 
     // Iterate over outgoing transitions of the current DFA state
-    for (auto& edge : dfa_->out(curr_dfa_state)) {
+    for (auto& edge : dfa_manager_.get_transitions(curr_dfa_state)) {
         if (is_transition_valid(edge.cond, next_grid_state_bdd)) {
             // Found a valid transition
             return &edge;
@@ -533,7 +479,7 @@ void TEGProblem::solve_with_on_the_fly_graph() {
     dfa_path_.clear();
 
     // Initialize all paths from the root = the start dfa state.
-    auto root = make_shared<DFANode>(dfa_->get_init_state_number());
+    auto root = make_shared<DFANode>(dfa_manager_.get_start_state());
     auto handle = nodePriorityQueue_.push(make_pair(0, root));
     node_handles_[root] = handle;
 
@@ -556,18 +502,6 @@ void TEGProblem::solve_with_on_the_fly_graph() {
     }
 }
 
-bdd TEGProblem::get_self_edge_cond(size_t dfa_state) {
-     for (auto& edge: dfa_->out(dfa_state)) {
-        // Check if this is a self-edge.
-        if (edge.dst == dfa_state) { 
-            std::cout << "Self-transition was found!" << endl;
-            return edge.cond;
-        }
-    }
-    cerr << "ERROR: no condition for self-transition was found!" << endl;
-    return bddfalse;
-}
-
 void TEGProblem::save_paths() {
     grid_path_.clear();
     dfa_path_.clear();
@@ -588,64 +522,6 @@ vector<GridState> TEGProblem::get_grid_path() const {
 
 vector<size_t> TEGProblem::get_dfa_path() const {
     return dfa_path_;
-}
-
-void TEGProblem::print_dfa() {
-    // We need the dictionary to print the BDDs that label the edges
-    const spot::bdd_dict_ptr& dict = dfa_->get_dict();
-
-    // Some meta-data...
-    std::cout << "Acceptance: " << dfa_->get_acceptance() << '\n';
-    std::cout << "Number of sets: " << dfa_->num_sets() << '\n';
-    std::cout << "Number of states: " << dfa_->num_states() << '\n';
-    std::cout << "Number of edges: " << dfa_->num_edges() << '\n';
-    std::cout << "Initial state: " << dfa_->get_init_state_number() << '\n';
-    std::cout << "Atomic propositions:";
-    for (spot::formula ap: dfa_->ap()) {
-        std::cout << ' ' << ap << " (=" << dict->varnum(ap) << ')';
-    }
-    std::cout << '\n';
-
-    // Arbitrary data can be attached to automata, by giving them
-    // a type and a name.  The HOA parser and printer both use the
-    // "automaton-name" to name the automaton.
-    if (auto name = dfa_->get_named_prop<string>("automaton-name")) {
-        std::cout << "Name: " << *name << '\n';
-    }
-
-    // For the following prop_*() methods, the return value is an
-    // instance of the spot::trival class that can represent
-    // yes/maybe/no.  These properties correspond to bits stored in the
-    // automaton, so they can be queried in constant time.  They are
-    // only set whenever they can be determined at a cheap cost: for
-    // instance an algorithm that always produces deterministic automata
-    // would set the deterministic property on its output.  
-    std::cout << "Complete: " << dfa_->prop_complete() << '\n';
-    std::cout << "Deterministic: " << (dfa_->prop_universal()
-                                && dfa_->is_existential()) << '\n';
-    std::cout << "Unambiguous: " << dfa_->prop_unambiguous() << '\n';
-    std::cout << "State-Based Acc: " << dfa_->prop_state_acc() << '\n';
-    std::cout << "Terminal: " << dfa_->prop_terminal() << '\n';
-    std::cout << "Weak: " << dfa_->prop_weak() << '\n';
-    std::cout << "Inherently Weak: " << dfa_->prop_inherently_weak() << '\n';
-    std::cout << "Stutter Invariant: " << dfa_->prop_stutter_invariant() << '\n';
-
-    // States are numbered from 0 to n-1
-    unsigned n = dfa_->num_states();
-    for (unsigned s = 0; s < n; ++s) {
-        std::cout << "State " << s << ":\n";
-
-        // The out(s) method returns a fake container that can be
-        // iterated over as if the contents was the edges going
-        // out of s.  Each of these edges is a quadruplet
-        // (src,dst,cond,acc).  Note that because this returns
-        // a reference, the edge can also be modified.
-        for (auto& t: dfa_->out(s)) {
-            std::cout << "  edge(" << t.src << " -> " << t.dst << ")\n    label = ";
-            spot::bdd_print_formula(std::cout, dict, t.cond);
-            std::cout << "\n    acc sets = " << t.acc << '\n';
-        }
-    }
 }
 
 void TEGProblem::print_product_transitions(int in_dfa_state, int out_dfa_state) {

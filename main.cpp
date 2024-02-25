@@ -22,7 +22,7 @@ int main() {
     bool cache = true;
 
     // Real-time planning feedback: success and failure scores used.
-    bool feedback = false;
+    bool feedback = true;
 
     // GridWorldDomain dimensions.
     double scale = 1; 

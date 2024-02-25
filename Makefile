@@ -2,10 +2,10 @@ CXX = g++
 CXXFLAGS = -std=c++17 -Wall -Wextra -IGridWorld -ILTLStuff -I$(HOME)/miniconda3/envs/spotenv/include -I/usr/local/include
 LDFLAGS = -L$(HOME)/miniconda3/envs/spotenv/lib -lspot -lbddx -lgvc -lcgraph -L/usr/local/lib -lsfml-graphics -lsfml-window -lsfml-system -lboost_system
 
-SRC = main.cpp LTLStuff/TEGProblem.cpp LTLStuff/DFANode.cpp GridWorld/GridWorldDomain.cpp GridWorld/GridWorldPlotter.cpp
+SRC = main.cpp LTLStuff/TEGProblem.cpp LTLStuff/DFANode.cpp LTLStuff/DFAManager.cpp GridWorld/GridWorldDomain.cpp GridWorld/GridWorldPlotter.cpp
 OBJ = $(SRC:.cpp=.o)
 DEP = $(OBJ:.o=.d)
-HEADERS = LTLFormula.h GridState.h GridAction.h GridWorldDomain.h TEGProblem.h ProductState.h GridWorldPlotter.h Action.h CompoundAction.h DFANode.h
+HEADERS = LTLFormula.h GridState.h GridAction.h GridWorldDomain.h TEGProblem.h ProductState.h GridWorldPlotter.h Action.h CompoundAction.h DFANode.h DFAManager.h
 TARGET = main
 
 all: $(TARGET)
