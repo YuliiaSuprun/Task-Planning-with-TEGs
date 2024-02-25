@@ -23,15 +23,6 @@ TEGProblem::TEGProblem(const string formula_str,
         cerr << "ERROR: Invalid start state in the task domain!" << endl;
     }
 
-    // Register all the propositions you need to bdd_dict.
-    for (const auto& prop_pair : ap_mapping) {
-        string prop = prop_pair.first;
-        spot::formula prop_formula = spot::formula::ap(prop);
-        bdd_dict_->register_proposition(prop_formula, nullptr);
-    }
-    // Print the "proposition to bdd" mapping.
-    // bdd_dict_->dump(std::std::cout) << "---\n";
-
     std::cout << "Creating dfa for problem_id=" << problem_id_ << endl;
     // Get a name for output files.
     stringstream ss;
