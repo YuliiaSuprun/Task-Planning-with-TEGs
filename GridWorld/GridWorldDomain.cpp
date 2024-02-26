@@ -23,6 +23,8 @@ GridWorldDomain::GridWorldDomain(size_t R, size_t C,
         }
         obstacle_matrix_ = obstacle_matrix;
     }
+
+    mark_all_states_as_unexplored();
 }
 
 // Define a static map.
@@ -32,6 +34,23 @@ bool GridWorldDomain::is_obstacle(const GridState& state) const {
     size_t x = state.x();
     size_t y = state.y();
     return obstacle_matrix_[x][y];
+}
+
+bool GridWorldDomain::was_explored(const GridState& state) const {
+    size_t x = state.x();
+    size_t y = state.y();
+    return exploration_matrix_[x][y];
+}
+
+void GridWorldDomain::mark_as_explored(const GridState& state) {
+    size_t x = state.x();
+    size_t y = state.y();
+    exploration_matrix_[x][y] = true;
+}
+
+void GridWorldDomain::mark_all_states_as_unexplored() {
+    exploration_matrix_.clear();
+    exploration_matrix_.resize(R_, vector<bool>(C_, false));
 }
 
 bool GridWorldDomain::is_valid_state(const GridState& state) const {

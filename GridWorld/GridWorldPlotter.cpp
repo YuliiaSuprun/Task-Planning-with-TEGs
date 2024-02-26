@@ -35,6 +35,8 @@ void GridWorldPlotter::visualize_path(const TEGProblem& problem) {
     // Clear the renderTexture
     renderTexture.clear(sf::Color::White);
 
+    sf::Color gray(128, 128, 128);
+
     // Draw the grid and obstacles to renderTexture
     for (size_t i = 0; i < grid_size_; ++i) {
         for (size_t j = 0; j < grid_size_; ++j) {
@@ -47,6 +49,8 @@ void GridWorldPlotter::visualize_path(const TEGProblem& problem) {
 
             if (grid_domain_->is_obstacle(curr_state)) {
                 cell.setFillColor(sf::Color::Black);
+            } else if (grid_domain_->was_explored(curr_state)) {
+                cell.setFillColor(gray);
             } else {
                 cell.setFillColor(sf::Color::White);
             }

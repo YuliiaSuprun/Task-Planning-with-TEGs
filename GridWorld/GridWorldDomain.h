@@ -47,6 +47,11 @@ public:
     void create_corridor_obstacle_matrix();
     void create_random_obstacle_matrix(double density);
 
+    bool was_explored(const GridState& state) const;
+    void mark_as_explored(const GridState& state);
+
+    void mark_all_states_as_unexplored();
+
 private:
     void initializeDefaultActions();
 
@@ -56,6 +61,7 @@ private:
     static map<GridState, vector<SkillAction>> skill_actions_;
 
     vector<vector<bool>> obstacle_matrix_;
+    vector<vector<bool>> exploration_matrix_;
     vector<GridState> all_domain_states_;
 };
 

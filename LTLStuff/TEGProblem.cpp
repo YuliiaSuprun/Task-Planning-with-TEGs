@@ -19,6 +19,8 @@ TEGProblem::TEGProblem(const string formula_str,
     product_manager_(make_shared<ProductManager>(domain_manager_, dfa_manager_))
     { 
 
+    domain_->mark_all_states_as_unexplored();
+
     // Check if the start state is valid.
     if (!domain_->is_valid_state(start_domain_state_)) {
         cerr << "ERROR: Invalid start state in the task domain!" << endl;
@@ -94,6 +96,7 @@ void TEGProblem::solve_with_full_graph() {
     while (!queue.empty()) {
         ProductState current_state = queue.front();
         queue.pop_front();
+        domain_->mark_as_explored(current_state.get_domain_state());
 
         for (const auto& transition : product_manager_->get_transitions(current_state)) {
             // Get the product state where this transition leads. 
@@ -206,6 +209,7 @@ void TEGProblem::realize_dfa_trace(shared_ptr<DFANode>& endTraceNode) {
         ProductState current_state = current_state_pair.second;
         // cout << "Popped the state " << current_state << " with score " << current_state_pair.first << endl;
         queue.pop();
+        domain_->mark_as_explored(current_state.get_domain_state());
 
         // Check if state was expanded?
         // If not, then generate successors for this state!
