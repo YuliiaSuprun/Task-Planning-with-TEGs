@@ -168,7 +168,7 @@ shared_ptr<DFANode> DFAManager::generate_dfa_path() {
                 int edge_cost = dfa_transition_cost(current_dfa_state, next_dfa_state);
                 int total_cost = currentNodePair.first + edge_cost;
 
-                auto childNode = make_shared<DFANode>(next_dfa_state, currentNode, edge_cost);
+                auto childNode = make_shared<DFANode>(next_dfa_state, currentNode, edge_cost, edge.cond);
                 currentNode->addChild(childNode);
 
                 auto handle = nodePriorityQueue_.push(make_pair(total_cost, childNode));

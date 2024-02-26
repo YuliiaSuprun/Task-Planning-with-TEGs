@@ -29,7 +29,7 @@ public:
             const map<string, set<GridState>> ap_mapping,
             const shared_ptr<GridWorldDomain> domain,
             const GridState& start_domain_state,
-            int problem_id = 0, bool on_the_fly=false, bool cache=false, bool feedback=false);
+            int problem_id = 0, bool on_the_fly=false, bool cache=false, bool feedback=false, bool use_landmarks=false);
 
     ~TEGProblem();
     
@@ -60,6 +60,7 @@ private:
     int problem_id_;
     bool on_the_fly_;
     bool cache_;
+    bool use_landmarks_;
 
     // DFA corresponding to LTL formula.
     spot::bdd_dict_ptr bdd_dict_;

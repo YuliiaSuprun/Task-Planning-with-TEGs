@@ -91,3 +91,17 @@ set<string> DomainManager::atomic_props(const GridState& domain_state) {
 
     return props;
 }
+
+set<bdd, BddComparator> DomainManager::get_all_equivalence_regions() {
+    set<bdd, BddComparator> equivalence_regions;
+
+    for (const auto& pair : bdd_to_states_) {
+        equivalence_regions.insert(pair.first);
+    }
+
+    return equivalence_regions;
+}
+
+map<bdd, set<GridState>, BddComparator>& DomainManager::get_bdd_to_states_map() {
+    return bdd_to_states_;
+}

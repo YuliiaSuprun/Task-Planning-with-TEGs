@@ -1,10 +1,10 @@
 #include "DFANode.h"
 
-DFANode::DFANode(size_t state, std::shared_ptr<DFANode> parent, int parent_edge_cost, bdd selfEdgeCondition, bdd parentEdgeCondition)
+DFANode::DFANode(size_t state, std::shared_ptr<DFANode> parent, int parent_edge_cost, bdd parentEdgeCondition, bdd selfEdgeCondition)
     : dfa_state_(state), parent_(parent),
     parent_edge_cost_(parent_edge_cost),
-    self_edge_condition_(selfEdgeCondition),
     parent_edge_condition_(parentEdgeCondition),
+    self_edge_condition_(selfEdgeCondition),
     reachable_(true) {
         if (!parent_) {
             // This is a root node (initial dfa state).
@@ -38,11 +38,11 @@ int DFANode::getPathCost() const {
     return path_from_root_cost_;
 }
 
-bdd DFANode::getSelfEdgeCondition() const {
+bdd& DFANode::getSelfEdgeCondition() {
     return self_edge_condition_;
 }
 
-bdd DFANode::getParentEdgeCondition() const {
+bdd& DFANode::getParentEdgeCondition() {
     return parent_edge_condition_;
 }
 

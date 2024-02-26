@@ -24,6 +24,9 @@ int main() {
     // Real-time planning feedback: success and failure scores used.
     bool feedback = true;
 
+    // Support for equivalence regions guidance: informed search in task domain.
+    bool use_landmarks = true;
+
     // GridWorldDomain dimensions.
     double scale = 1; 
     size_t R = 20 * scale + 1;
@@ -75,7 +78,7 @@ int main() {
         cout << "Solving for problem_id=" << problem_id << " and formula=" << formula << endl;
 
         // Initialize the TEG Problem.
-        TEGProblem problem(formula, ap_mapping, domain, start_grid_state, problem_id, on_the_fly, cache, feedback);
+        TEGProblem problem(formula, ap_mapping, domain, start_grid_state, problem_id, on_the_fly, cache, feedback, use_landmarks);
 
         auto start = chrono::high_resolution_clock::now();
 

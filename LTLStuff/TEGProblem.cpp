@@ -10,8 +10,9 @@ TEGProblem::TEGProblem(const string formula_str,
             const map<string, set<GridState>> ap_mapping,
             const shared_ptr<GridWorldDomain> domain,
             const GridState& start_domain_state,
-            int problem_id, bool on_the_fly, bool cache, bool feedback)
+            int problem_id, bool on_the_fly, bool cache, bool feedback, bool use_landmarks)
     : domain_(domain), start_domain_state_(start_domain_state), problem_id_(problem_id), on_the_fly_(on_the_fly), cache_(cache),
+    use_landmarks_(use_landmarks),
     bdd_dict_(make_shared<spot::bdd_dict>()),
     dfa_manager_(make_shared<DFAManager>(bdd_dict_, feedback)),
     domain_manager_(make_shared<DomainManager>(bdd_dict_, domain_, ap_mapping)),
@@ -160,17 +161,31 @@ void TEGProblem::realize_dfa_trace(shared_ptr<DFANode>& endTraceNode) {
 
     size_t dfa_start_state = dfa_trace.front();
     ProductState start_state(start_domain_state_, dfa_start_state);
-    // TODO: change to a map of priority queues!!!  
-    
-    map<size_t, priority_queue<pair<int, ProductState>, vector<pair<int, ProductState>>, greater<pair<int, ProductState>>>> regionQueues;
-
-    regionQueues[dfa_start_state].push(make_pair(SUCCESS_COST, start_state));
 
     size_t currentRegionIndex = 0;
     size_t maxRegionIndexReached = 0;
 
     set<ProductState> visited;
     visited.insert(start_state);
+
+    // Initialize a map of priority queues 
+    // (one queue for each DFA state in the trace)
+    map<size_t, priority_queue<pair<int, ProductState>, vector<pair<int, ProductState>>, greater<pair<int, ProductState>>>> regionQueues;
+
+    int curr_state_heuristic;
+    int next_state_heuristic;
+
+    // We need this for computing heuristics.
+    map<size_t, set<GridState>> landmarks;
+
+    if (use_landmarks_) {
+        auto next_dfa_edge_condition = dfa_nodes.at(1)->getParentEdgeCondition();
+        landmarks[dfa_start_state] = product_manager_->sample_landmarks(next_dfa_edge_condition, start_domain_state_);
+
+        curr_state_heuristic = start_state.compute_heuristic_cost(landmarks[dfa_start_state]);
+    }
+
+    regionQueues[dfa_start_state].push(make_pair(curr_state_heuristic, start_state));
 
     map<ProductState, vector<ProductState>> parent_map;
 
@@ -190,7 +205,7 @@ void TEGProblem::realize_dfa_trace(shared_ptr<DFANode>& endTraceNode) {
         // Queue is not empty!
         auto current_state_pair = queue.top();
         ProductState current_state = current_state_pair.second;
-        cout << "Popped the state " << current_state << " with score " << current_state_pair.first << endl;
+        // cout << "Popped the state " << current_state << " with score " << current_state_pair.first << endl;
         queue.pop();
 
         // Check if state was expanded?
@@ -244,11 +259,6 @@ void TEGProblem::realize_dfa_trace(shared_ptr<DFANode>& endTraceNode) {
 
                 currentRegionIndex++;
 
-                // TODO: compute landmarks for the next DFA region:
-                // 1) Sample k points in the next equivalence region (aka landmarks). 
-                // 2) Define heuristic as a distance to the closest sampled point.
-                // 3) Not an admissible heuristic but we don't care about optimality of the path, so it's fine.
-
                 // Remember the last dfa state we were able to reach.
                 if (maxRegionIndexReached < currentRegionIndex) {
                     maxRegionIndexReached = currentRegionIndex;
@@ -262,12 +272,30 @@ void TEGProblem::realize_dfa_trace(shared_ptr<DFANode>& endTraceNode) {
                     return;
                 }
 
+                // Compute landmarks for the next DFA region:
+                // 1) Sample k points in the next equivalence region (aka landmarks). 
+                // 2) Define heuristic as a distance to the closest sampled point.
+                // 3) Not an admissible heuristic but we don't care about optimality of the path, so it's fine.
+
+                if (use_landmarks_ && landmarks.count(next_dfa_state) == 0) {
+                    auto next_dfa_edge_condition = dfa_nodes.at(currentRegionIndex + 1)->getParentEdgeCondition();
+                    landmarks[next_dfa_state] = product_manager_->sample_landmarks(next_dfa_edge_condition, next_state.get_domain_state());
+                }
+
             } 
 
-            // TODO: compute the heuristic score for this state and push it into the queue.
+            // Compute the heuristic score for this state and push it into the queue.
+            int curr_state_cost = current_state_pair.first;
+            // Default cost of an edge is 1.
+            int next_state_cost = curr_state_cost + DEFAULT_COST; 
+            if (use_landmarks_) {
+                int curr_heuristic_cost = current_state.compute_heuristic_cost(landmarks[curr_dfa_state]);
+                int next_heuristic_cost = next_state.compute_heuristic_cost(landmarks[next_dfa_state]);
+                next_state_cost += (next_heuristic_cost - curr_heuristic_cost);
+            }
 
             // Push this new product state onto the corresponding queue.
-            regionQueues[next_dfa_state].push(make_pair(current_state_pair.first + DEFAULT_COST, next_state));
+            regionQueues[next_dfa_state].push(make_pair(next_state_cost, next_state));
             // This state has been visited now!
             visited.insert(next_state);
         }
@@ -276,6 +304,7 @@ void TEGProblem::realize_dfa_trace(shared_ptr<DFANode>& endTraceNode) {
     // Update the cost for the dfa transition we couldn't realize.
     dfa_manager_->update_dfa_transition_cost(dfa_nodes.at(maxRegionIndexReached + 1), FAILURE_COST);
 }
+
 
 vector<ProductState> TEGProblem::construct_path(const map<ProductState, vector<ProductState>>& parent_map, ProductState target_state, bool cached, size_t start_dfa_state) {
     vector<ProductState> path;

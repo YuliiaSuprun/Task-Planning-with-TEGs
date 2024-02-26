@@ -8,7 +8,7 @@
 class ProductState {
 public:
     ProductState(const GridState& domain_state, size_t dfa_state)
-    : domain_state_(domain_state), dfa_state_(dfa_state) {}
+    : domain_state_(domain_state), dfa_state_(dfa_state), heuristic_cost_(INT_MAX) {}
 
     // Accessor methods
     GridState get_domain_state() const {
@@ -25,6 +25,24 @@ public:
 
     void cache() { 
         domain_state_.cache();  
+    }
+
+    double distance(const ProductState& other) const {
+        return domain_state_.distance(other.domain_state_);
+    }
+
+    int compute_heuristic_cost(const std::set<GridState>& landmarks) {
+        if (heuristic_cost_ != INT_MAX) {
+            // Has been already computed
+            return heuristic_cost_;
+        }
+        for (const auto& landmark_state : landmarks) {
+            int currentDistance = domain_state_.distance(landmark_state);
+            if (currentDistance < heuristic_cost_) {
+                heuristic_cost_ = currentDistance;
+            }
+        }
+        return heuristic_cost_;
     }
 
     bool operator==(const ProductState& other) const {
@@ -46,6 +64,7 @@ public:
 private:
     GridState domain_state_;
     size_t dfa_state_;
+    int heuristic_cost_;
 };
 
 inline std::ostream& operator<<(std::ostream& os, const ProductState& ps) {

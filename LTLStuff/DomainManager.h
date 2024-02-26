@@ -22,8 +22,9 @@ public:
 
     bdd get_state_bdd(const GridState& domain_state);
     set<GridState>& get_equivalence_region(bdd& equiv_region_bdd);
+    set<bdd, BddComparator> get_all_equivalence_regions();
+    map<bdd, set<GridState>, BddComparator>& get_bdd_to_states_map();
     set<string> atomic_props(const GridState& domain_state);
-
 
 private:
 

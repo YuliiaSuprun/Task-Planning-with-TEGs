@@ -2,6 +2,7 @@
 #define GRID_STATE_H
 
 #include <iostream>
+#include <cmath>
 #include "GridAction.h"
 
 class GridState {
@@ -36,6 +37,22 @@ public:
     // Apply a GridAction to the current state and return the resulting state.
     GridState apply(const GridAction& action) const {
         return GridState(x_ + action.deltaX(), y_ + action.deltaY());
+    }
+
+    // Calculate Euclidean distance to another GridState
+    double distance(const GridState& other) const {
+        return std::pow(static_cast<double>(x_) - other.x_, 2) +
+                         std::pow(static_cast<double>(y_) - other.y_, 2);
+    }
+
+    double euclideanDistance(const GridState& other) const {
+        return std::sqrt(std::pow(static_cast<double>(x_) - other.x_, 2) +
+                         std::pow(static_cast<double>(y_) - other.y_, 2));
+    }
+
+    size_t manhattanDistance(const GridState& other) const {
+        return std::abs(static_cast<int>(x_) - static_cast<int>(other.x_)) +
+               std::abs(static_cast<int>(y_) - static_cast<int>(other.y_));
     }
 
 

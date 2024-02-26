@@ -1,5 +1,8 @@
 #include "ProductManager.h"
 
+#include <algorithm> 
+#include <iterator>
+
 using namespace std;
 
 ProductManager::ProductManager(shared_ptr<DomainManager> domain_manager, 
@@ -88,4 +91,38 @@ void ProductManager::print_product_transitions(int in_dfa_state, int out_dfa_sta
             std::cout << endl;
         }
     }
+}
+
+set<GridState> ProductManager::sample_landmarks(const bdd& edge_cond, const GridState& curr_domain_state, size_t num_landmarks) {
+    auto curr_state_bdd = domain_manager_->get_state_bdd(curr_domain_state);
+
+    vector<GridState> potential_landmarks;
+
+    for (const auto& pair : domain_manager_->get_bdd_to_states_map()) {
+        bdd equiv_group_bdd = pair.first;
+        const set<GridState>& domain_states = pair.second;
+
+        if (equiv_group_bdd == curr_state_bdd) {
+            // Skip it: this is the current equivalence group.
+            continue;
+        }
+
+        if (dfa_manager_->is_transition_valid(edge_cond, equiv_group_bdd)) {
+            // Insert elements from set to vector
+            // Might need to make more efficient later.
+            copy(domain_states.begin(), domain_states.end(), back_inserter(potential_landmarks));
+        }
+    }
+
+    // Shuffle and select a subset as landmarks
+    random_device rd;
+    mt19937 g(rd());
+    shuffle(potential_landmarks.begin(), potential_landmarks.end(), g);
+
+    set<GridState> landmarks;
+    for (size_t i = 0; i < min(num_landmarks, potential_landmarks.size()); ++i) {
+        landmarks.insert(potential_landmarks[i]);
+    }
+
+    return landmarks;
 }

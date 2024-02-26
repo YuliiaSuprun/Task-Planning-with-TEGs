@@ -5,6 +5,7 @@
 #include <vector>
 #include <map>
 #include <set>
+#include <random>
 #include "ProductState.h"
 #include "ProductTransition.h"
 #include "GridWorldDomain.h"
@@ -27,11 +28,14 @@ public:
 
     void print_product_transitions(int in_dfa_state=-1, int out_dfa_state=-1);
 
+    set<GridState> sample_landmarks(const bdd& edge_cond, const GridState& curr_domain_state, size_t num_landmarks=NUM_LANDMARKS);
+
 private:
     std::shared_ptr<DomainManager> domain_manager_;
     std::shared_ptr<DFAManager> dfa_manager_;
     std::vector<ProductState> product_states_;
     std::map<ProductState, std::vector<ProductTransition>> product_transitions_;
+    static const size_t NUM_LANDMARKS = 100;
 };
 
 #endif // PRODUCTMANAGER_H
