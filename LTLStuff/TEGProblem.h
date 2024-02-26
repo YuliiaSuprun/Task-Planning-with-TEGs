@@ -65,8 +65,8 @@ private:
     // DFA corresponding to LTL formula.
     spot::bdd_dict_ptr bdd_dict_;
 
-    std::shared_ptr<DFAManager> dfa_manager_;
     std::shared_ptr<DomainManager> domain_manager_;
+    std::shared_ptr<DFAManager> dfa_manager_;
     std::shared_ptr<ProductManager> product_manager_;
 
     // Solution path (if found).

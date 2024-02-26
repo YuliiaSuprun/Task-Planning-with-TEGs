@@ -14,8 +14,8 @@ TEGProblem::TEGProblem(const string formula_str,
     : domain_(domain), start_domain_state_(start_domain_state), problem_id_(problem_id), on_the_fly_(on_the_fly), cache_(cache),
     use_landmarks_(use_landmarks),
     bdd_dict_(make_shared<spot::bdd_dict>()),
-    dfa_manager_(make_shared<DFAManager>(bdd_dict_, feedback)),
     domain_manager_(make_shared<DomainManager>(bdd_dict_, domain_, ap_mapping)),
+    dfa_manager_(make_shared<DFAManager>(bdd_dict_, domain_manager_->get_all_equivalence_regions(), feedback)),
     product_manager_(make_shared<ProductManager>(domain_manager_, dfa_manager_))
     { 
 
@@ -172,8 +172,7 @@ void TEGProblem::realize_dfa_trace(shared_ptr<DFANode>& endTraceNode) {
     // (one queue for each DFA state in the trace)
     map<size_t, priority_queue<pair<int, ProductState>, vector<pair<int, ProductState>>, greater<pair<int, ProductState>>>> regionQueues;
 
-    int curr_state_heuristic;
-    int next_state_heuristic;
+    int curr_state_heuristic = 0;
 
     // We need this for computing heuristics.
     map<size_t, set<GridState>> landmarks;

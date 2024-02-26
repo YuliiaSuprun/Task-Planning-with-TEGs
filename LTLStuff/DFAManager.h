@@ -19,17 +19,18 @@
 
 #include "LTLFormula.h"
 #include "DFANode.h"
+#include "DomainManager.h"
 
 class DFAManager {
 public:
     // Constructor
-    DFAManager(std::shared_ptr<spot::bdd_dict> bddDict, bool feedback);
+    DFAManager(shared_ptr<spot::bdd_dict> bddDict, set<bdd, BddComparator> equivalence_regions, bool feedback);
 
     // Convert LTL formula to DFA
     void construct_dfa(const LTLFormula& formula);
 
     // Save DFA to DOT and PNG files
-    void save_dfa(const std::string& filename);
+    void save_dfa(const string& filename);
 
     void print_dfa();
 
@@ -50,16 +51,19 @@ public:
 
     void initialize_node_priority_queue();
 
+    bool is_transition_feasible(const bdd& edge_cond);
+
     bool is_transition_valid(const bdd& edge_cond, const bdd& next_state_bdd);
     spot::twa_graph::edge_storage_t* find_transition(const bdd& next_state_bdd, size_t curr_dfa_state);
 
 private:
 
     spot::bdd_dict_ptr bdd_dict_;
+    set<bdd, BddComparator> equivalence_regions_;
     bool feedback_;
 
     // DFA corresponding to LTL formula.
-    std::shared_ptr<spot::twa_graph> dfa_;
+    shared_ptr<spot::twa_graph> dfa_;
 
     // A priority queue with a pair of (cost, DFANode)
     NodeHeap nodePriorityQueue_;

@@ -5,8 +5,9 @@
 
 using namespace std;
 
-DFAManager::DFAManager(shared_ptr<spot::bdd_dict> bddDict, bool feedback)
-    : bdd_dict_(bddDict), feedback_(feedback) {}
+DFAManager::DFAManager(shared_ptr<spot::bdd_dict> bddDict, set<bdd, BddComparator> equivalence_regions, bool feedback)
+    : bdd_dict_(bddDict), equivalence_regions_(equivalence_regions),
+    feedback_(feedback) {}
 
 void DFAManager::construct_dfa(const LTLFormula& formula) {
     spot::formula spot_formula = formula.get_spot_formula();
@@ -163,7 +164,7 @@ shared_ptr<DFANode> DFAManager::generate_dfa_path() {
         for (auto& edge: get_transitions(current_dfa_state)) {
             size_t next_dfa_state = edge.dst;
 
-            if (next_dfa_state != current_dfa_state) { 
+            if (next_dfa_state != current_dfa_state && is_transition_feasible(edge.cond)) { 
                 // Calculate the cost for this transition
                 int edge_cost = dfa_transition_cost(current_dfa_state, next_dfa_state);
                 int total_cost = currentNodePair.first + edge_cost;
@@ -251,6 +252,16 @@ bool DFAManager::is_transition_valid(const bdd& edge_cond, const bdd& next_state
     // check if "next_state_bdd => edge_cond"
     bdd implication = bdd_apply(bdd_not(next_state_bdd), edge_cond, bddop_or);
     return implication == bddtrue;
+}
+
+bool DFAManager::is_transition_feasible(const bdd& edge_cond) {
+    for (const auto& region_bdd : equivalence_regions_) {
+        if (is_transition_valid(edge_cond, region_bdd)) {
+            // At least one equivalence region satisfies the transition.
+            return true;
+        }
+    }
+    return false;
 }
 
 spot::twa_graph::edge_storage_t* DFAManager::find_transition(const bdd& next_state_bdd, size_t curr_dfa_state) {
