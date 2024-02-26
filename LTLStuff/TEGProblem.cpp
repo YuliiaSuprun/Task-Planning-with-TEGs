@@ -280,6 +280,11 @@ void TEGProblem::realize_dfa_trace(shared_ptr<DFANode>& endTraceNode) {
                 if (use_landmarks_ && landmarks.count(next_dfa_state) == 0) {
                     auto next_dfa_edge_condition = dfa_nodes.at(currentRegionIndex + 1)->getParentEdgeCondition();
                     landmarks[next_dfa_state] = product_manager_->sample_landmarks(next_dfa_edge_condition, next_state.get_domain_state());
+                    if (landmarks[next_dfa_state].empty()) {
+                        cout << "landmarks[next_dfa_state].empty() for " << next_dfa_state << endl;
+                        dfa_manager_->update_dfa_transition_cost(dfa_nodes.at(maxRegionIndexReached + 1), FAILURE_COST);
+                        return;
+                    }
                 }
 
             } 
