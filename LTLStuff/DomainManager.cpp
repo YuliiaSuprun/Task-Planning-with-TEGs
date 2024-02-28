@@ -27,7 +27,7 @@ const vector<shared_ptr<DomainState>>& DomainManager::get_all_domain_states() {
     return domain_->get_all_states();
 }
 
-const vector<pair<shared_ptr<DomainState>, GridAction>> DomainManager::get_successor_state_action_pairs(const DomainState& domain_state) {
+const vector<pair<shared_ptr<DomainState>, shared_ptr<PrimitiveAction>>> DomainManager::get_successor_state_action_pairs(const DomainState& domain_state) {
     return domain_->get_successor_state_action_pairs(domain_state);
 }
 

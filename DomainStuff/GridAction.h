@@ -1,9 +1,9 @@
 #ifndef GRID_ACTION_H
 #define GRID_ACTION_H
 
-#include "Action.h"
+#include "PrimitiveAction.h"
 
-class GridAction : public Action {
+class GridAction : public PrimitiveAction {
 public:
     GridAction(int deltaX = 0, int deltaY = 0) : deltaX_(deltaX), deltaY_(deltaY) {}
 
@@ -13,13 +13,21 @@ public:
     void set_x(int x) { deltaX_ = x; }
     void set_y(int y) { deltaY_ = y; }
 
-    bool operator==(const GridAction& other) const {
-        return deltaX_ == other.deltaX_ && deltaY_ == other.deltaY_;
+    bool operator==(const PrimitiveAction& other) const override {
+        auto other_ptr = dynamic_cast<const GridAction*>(&other);
+        if (!other_ptr) {
+            return false;
+        }
+        return deltaX_ == other_ptr->deltaX_ && deltaY_ == other_ptr->deltaY_;
     }
 
-    bool operator<(const GridAction& other) const {
-        if (deltaX_ != other.deltaX_) return deltaX_ < other.deltaX_;
-        return deltaY_ < other.deltaY_;
+    bool operator<(const PrimitiveAction& other) const override {
+        auto other_ptr = dynamic_cast<const GridAction*>(&other);
+        if (!other_ptr) {
+            return false;
+        }
+        if (deltaX_ != other_ptr->deltaX_) return deltaX_ < other_ptr->deltaX_;
+        return deltaY_ < other_ptr->deltaY_;
     }
 
 private:

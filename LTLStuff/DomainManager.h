@@ -19,7 +19,7 @@ public:
 
     const vector<shared_ptr<DomainState>>& get_all_domain_states();
 
-    const vector<pair<shared_ptr<DomainState>, GridAction>> get_successor_state_action_pairs(const DomainState& domain_state);
+    const vector<pair<shared_ptr<DomainState>, shared_ptr<PrimitiveAction>>> get_successor_state_action_pairs(const DomainState& domain_state);
 
     bdd get_state_bdd(const shared_ptr<DomainState> domain_state);
     DomainStateSet& get_equivalence_region(bdd& equiv_region_bdd);

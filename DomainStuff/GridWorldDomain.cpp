@@ -7,7 +7,7 @@
 
 GridWorldDomain::GridWorldDomain(size_t R, size_t C, 
                                  const vector<vector<bool>>& obstacle_matrix,
-                                 const vector<GridAction>& actions) 
+                                 const vector<shared_ptr<PrimitiveAction>>& actions) 
     : R_(R), C_(C) {
     if (actions.empty()) {
         initializeDefaultActions();
@@ -28,7 +28,7 @@ GridWorldDomain::GridWorldDomain(size_t R, size_t C,
 }
 
 // Implementing virtual methods from Domain
-const vector<GridAction>& GridWorldDomain::get_actions(const DomainState& state) const {
+const vector<shared_ptr<PrimitiveAction>>& GridWorldDomain::get_actions(const DomainState& state) const {
     (void)state; // To avoid compiler's warnings.
     return actions_;
 }
@@ -55,7 +55,7 @@ const vector<shared_ptr<DomainState>> GridWorldDomain::get_successor_states(cons
     }
 
     for (const auto& action : get_actions(*grid_state_ptr)) {
-        auto next_state_ptr = grid_state_ptr->apply(action);
+        auto next_state_ptr = grid_state_ptr->apply(*action);
         if (is_valid_state(*next_state_ptr)) {
             successor_states.push_back(next_state_ptr);
         }
@@ -63,8 +63,8 @@ const vector<shared_ptr<DomainState>> GridWorldDomain::get_successor_states(cons
     return successor_states;
 }
 
-const vector<pair<shared_ptr<DomainState>, GridAction>> GridWorldDomain::get_successor_state_action_pairs(const DomainState& curr_state) {
-    vector<pair<shared_ptr<DomainState>, GridAction>> successor_state_action_pairs;
+const vector<pair<shared_ptr<DomainState>, shared_ptr<PrimitiveAction>>> GridWorldDomain::get_successor_state_action_pairs(const DomainState& curr_state) {
+    vector<pair<shared_ptr<DomainState>, shared_ptr<PrimitiveAction>>> successor_state_action_pairs;
 
     auto grid_state_ptr = dynamic_cast<const GridState*>(&curr_state);
     if (!grid_state_ptr) {
@@ -73,7 +73,7 @@ const vector<pair<shared_ptr<DomainState>, GridAction>> GridWorldDomain::get_suc
     }
 
     for (const auto& action : get_actions(*grid_state_ptr)) {
-        auto next_state_ptr = grid_state_ptr->apply(action);
+        auto next_state_ptr = grid_state_ptr->apply(*action);
         if (is_valid_state(*next_state_ptr)) {
             successor_state_action_pairs.emplace_back(next_state_ptr, action);
         }
@@ -131,14 +131,14 @@ bool GridWorldDomain::is_valid_transition(const GridState& s1, const GridState& 
 }
 
 void GridWorldDomain::initializeDefaultActions() {
-    actions_.push_back(GridAction(0, 1));
-    actions_.push_back(GridAction(1, 1));
-    actions_.push_back(GridAction(1, 0));
-    actions_.push_back(GridAction(1, -1));
-    actions_.push_back(GridAction(0, -1));
-    actions_.push_back(GridAction(-1, -1));
-    actions_.push_back(GridAction(-1, 0));
-    actions_.push_back(GridAction(-1, 1));
+    actions_.push_back(make_shared<GridAction>(0, 1));
+    actions_.push_back(make_shared<GridAction>(1, 1));
+    actions_.push_back(make_shared<GridAction>(1, 0));
+    actions_.push_back(make_shared<GridAction>(1, -1));
+    actions_.push_back(make_shared<GridAction>(0, -1));
+    actions_.push_back(make_shared<GridAction>(-1, -1));
+    actions_.push_back(make_shared<GridAction>(-1, 0));
+    actions_.push_back(make_shared<GridAction>(-1, 1));
 }
 
 

@@ -4,7 +4,7 @@
 #include <iostream>
 #include <set>
 
-#include "GridAction.h"
+#include "PrimitiveAction.h"
 
 class DomainState {
 public:
@@ -13,7 +13,7 @@ public:
     // Virtual functions to be overridden by derived classes
     virtual void cache() = 0;
     virtual bool isCached() const = 0;
-    virtual std::shared_ptr<DomainState> apply(const GridAction& action) const = 0;
+    virtual std::shared_ptr<DomainState> apply(const PrimitiveAction& action) const = 0;
     virtual double distance(const DomainState& other) const = 0;
 
     // Operators to be overridden

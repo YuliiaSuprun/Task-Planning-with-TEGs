@@ -20,8 +20,13 @@ public:
     }
 
     // Apply a GridAction to the current state and return the resulting state.
-    std::shared_ptr<DomainState> apply(const GridAction& action) const override {
-        return std::make_shared<GridState>(x_ + action.deltaX(), y_ + action.deltaY());
+    std::shared_ptr<DomainState> apply(const PrimitiveAction& action) const override {
+        auto grid_action_ptr = dynamic_cast<const GridAction*>(&action);
+        if (!grid_action_ptr) {
+            std::cerr << "ERROR: invalid action. GridAction was expected." << std::endl;
+            return nullptr;
+        }
+        return std::make_shared<GridState>(x_ + grid_action_ptr->deltaX(), y_ + grid_action_ptr->deltaY());
     }
 
     double distance(const DomainState& other) const override {
@@ -38,7 +43,6 @@ public:
     bool operator==(const DomainState& other) const override {
         auto otherState = dynamic_cast<const GridState*>(&other);
         if (!otherState) {
-            std::cerr << "ERROR: invalid domain state. GridState was expected." << std::endl;
             return false;
         }
         return x_ == otherState->x_ && y_ == otherState->y_;
@@ -47,7 +51,6 @@ public:
     bool operator<(const DomainState& other) const override {
         auto otherState = dynamic_cast<const GridState*>(&other);
         if (!otherState) {
-            std::cerr << "ERROR: invalid domain state. GridState was expected." << std::endl;
             return false;
         }
         if (x_ != otherState->x_) return x_ < otherState->x_;

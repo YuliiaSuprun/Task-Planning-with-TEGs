@@ -40,7 +40,7 @@ void ProductManager::generate_successors(const ProductState& prod_state) {
     // Add transitions based on "primitive" actions in the domain.
     for (const auto& state_action_pair : domain_manager_->get_successor_state_action_pairs(*domain_state)) {
         shared_ptr<DomainState> next_domain_state = state_action_pair.first;
-        GridAction next_action = state_action_pair.second;
+        shared_ptr<PrimitiveAction> domain_action = state_action_pair.second;
 
         bdd next_domain_state_bdd = domain_manager_->get_state_bdd(next_domain_state);
         auto dfa_transition = dfa_manager_->find_transition(next_domain_state_bdd, dfa_state);
@@ -51,7 +51,6 @@ void ProductManager::generate_successors(const ProductState& prod_state) {
 
         size_t next_dfa_state = dfa_transition->dst;
         ProductState next_prod_state(next_domain_state, next_dfa_state);
-        auto domain_action = make_shared<GridAction>(next_action);
         product_transitions_[prod_state].emplace_back(prod_state, next_prod_state, dfa_transition->cond, domain_action);
     }
 }

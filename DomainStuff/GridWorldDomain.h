@@ -16,13 +16,13 @@ class GridWorldDomain : public Domain{
 public:
     GridWorldDomain(size_t R, size_t C, 
                     const vector<vector<bool>>& obstacle_matrix = {},
-                    const vector<GridAction>& actions = {});
+                    const vector<shared_ptr<PrimitiveAction>>& actions = {});
 
     // Overriding virtual methods from Domain
-    const vector<GridAction>& get_actions(const DomainState& state) const override;
+    const vector<shared_ptr<PrimitiveAction>>& get_actions(const DomainState& state) const override;
     const vector<shared_ptr<DomainState>>& get_all_states() override;
     const vector<shared_ptr<DomainState>> get_successor_states(const DomainState& curr_state) override;
-    const vector<pair<shared_ptr<DomainState>, GridAction>> get_successor_state_action_pairs(const DomainState& curr_state) override;
+    const vector<pair<shared_ptr<DomainState>, shared_ptr<PrimitiveAction>>> get_successor_state_action_pairs(const DomainState& curr_state) override;
     void mark_all_states_as_unexplored() override;
     bool is_valid_state(const DomainState& state) const override;
     void mark_as_explored(const DomainState& state) override;
@@ -54,7 +54,7 @@ private:
 
     size_t R_;
     size_t C_;
-    vector<GridAction> actions_;
+    vector<shared_ptr<PrimitiveAction>> actions_;
 
     vector<vector<bool>> obstacle_matrix_;
     vector<vector<bool>> exploration_matrix_;
