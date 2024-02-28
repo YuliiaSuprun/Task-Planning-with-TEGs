@@ -62,10 +62,14 @@ void GridWorldPlotter::visualize_path(const TEGProblem& problem) {
 
     // Draw the path to renderTexture
     for (size_t i = 0; i < grid_path.size(); ++i) {
-        const auto& state = grid_path[i];
+        auto grid_state_ptr = dynamic_cast<const GridState*>(&*grid_path[i]);
+        if (!grid_state_ptr) {
+            std::cerr << "ERROR: invalid domain state. GridState was expected." << std::endl;
+            return;
+        }
         sf::RectangleShape pathCell(sf::Vector2f(cell_width_, cell_height_));
-        pathCell.setPosition(state.y() * cell_width_, state.x() * cell_height_);
-        if (state.isCached()) {
+        pathCell.setPosition(grid_state_ptr->y() * cell_width_, grid_state_ptr->x() * cell_height_);
+        if (grid_state_ptr->isCached()) {
             pathCell.setFillColor(sf::Color::Magenta);
         } else {
             pathCell.setFillColor(sf::Color::Blue);
@@ -78,8 +82,8 @@ void GridWorldPlotter::visualize_path(const TEGProblem& problem) {
 
         if (i == 0) {
             // Position and draw the "start" label
-            startText.setPosition((state.y() + 0.3) * cell_width_,
-                                  (state.x() - 0.2) * cell_height_);
+            startText.setPosition((grid_state_ptr->y() + 0.3) * cell_width_,
+                                  (grid_state_ptr->x() - 0.2) * cell_height_);
             renderTexture.draw(startText);
         }
     }
@@ -89,8 +93,13 @@ void GridWorldPlotter::visualize_path(const TEGProblem& problem) {
     for (const auto& pair : labelToColorMapping) {
         const std::string& label = pair.first;
         for (const auto& gridState : pair.second) {
+            auto grid_state_ptr = dynamic_cast<const GridState*>(&*gridState);
+            if (!grid_state_ptr) {
+                std::cerr << "ERROR: invalid domain state. GridState was expected." << std::endl;
+                return;
+            }
             sf::RectangleShape labelCell(sf::Vector2f(cell_width_, cell_height_));
-            labelCell.setPosition(gridState.y() * cell_width_, gridState.x() * cell_height_);
+            labelCell.setPosition(grid_state_ptr->y() * cell_width_, grid_state_ptr->x() * cell_height_);
             
             if (label == "g") {
                 labelCell.setFillColor(sf::Color::Cyan);
@@ -104,8 +113,8 @@ void GridWorldPlotter::visualize_path(const TEGProblem& problem) {
 
             sf::Text labelText(label, font, cell_width_ * 0.8);
             labelText.setFillColor(sf::Color::Black);
-            labelText.setPosition((gridState.y() + 0.3) * cell_width_,
-                                  (gridState.x() - 0.2) * cell_height_);
+            labelText.setPosition((grid_state_ptr->y() + 0.3) * cell_width_,
+                                  (grid_state_ptr->x() - 0.2) * cell_height_);
             renderTexture.draw(labelText);
         }
     }

@@ -16,14 +16,13 @@ using namespace std;
 */
 class CompoundAction : public Action {
 public:
-    CompoundAction(vector<ProductState> path) : path_(path) {
+    CompoundAction(vector<ProductState>& path) : path_(path) {}
+
+    vector<ProductState> cached_path(bool with_end = false) {
         for (auto& state : path_) {
+            // For visualization.
             state.cache();
         }
-    }
-
-    vector<ProductState> cached_path(bool with_end = false) const {
-
         if (with_end || path_.empty()) {
             return path_;
         } else {

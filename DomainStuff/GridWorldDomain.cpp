@@ -27,8 +27,88 @@ GridWorldDomain::GridWorldDomain(size_t R, size_t C,
     mark_all_states_as_unexplored();
 }
 
-// Define a static map.
-map<GridState, vector<SkillAction>> GridWorldDomain::skill_actions_ = {};
+// Implementing virtual methods from Domain
+const vector<GridAction>& GridWorldDomain::get_actions(const DomainState& state) const {
+    (void)state; // To avoid compiler's warnings.
+    return actions_;
+}
+
+const vector<shared_ptr<DomainState>>& GridWorldDomain::get_all_states() {
+    if (all_domain_states_.empty()) {
+        all_domain_states_.reserve(R_ * C_);
+        for (size_t r = 0; r < R_; ++r) {
+            for (size_t c = 0; c < C_; ++c) {
+                all_domain_states_.emplace_back(make_shared<GridState>(r, c));
+            }
+        }
+    }
+    return all_domain_states_;
+}
+
+const vector<shared_ptr<DomainState>> GridWorldDomain::get_successor_states(const DomainState& curr_state) {
+    vector<shared_ptr<DomainState>> successor_states;
+
+    auto grid_state_ptr = dynamic_cast<const GridState*>(&curr_state);
+    if (!grid_state_ptr) {
+        cerr << "ERROR: Invalid DomainState. GridState was expected." << endl;
+        return successor_states; 
+    }
+
+    for (const auto& action : get_actions(*grid_state_ptr)) {
+        auto next_state_ptr = grid_state_ptr->apply(action);
+        if (is_valid_state(*next_state_ptr)) {
+            successor_states.push_back(next_state_ptr);
+        }
+    }
+    return successor_states;
+}
+
+const vector<pair<shared_ptr<DomainState>, GridAction>> GridWorldDomain::get_successor_state_action_pairs(const DomainState& curr_state) {
+    vector<pair<shared_ptr<DomainState>, GridAction>> successor_state_action_pairs;
+
+    auto grid_state_ptr = dynamic_cast<const GridState*>(&curr_state);
+    if (!grid_state_ptr) {
+        cerr << "ERROR: Invalid DomainState. GridState was expected." << endl;
+        return successor_state_action_pairs; 
+    }
+
+    for (const auto& action : get_actions(*grid_state_ptr)) {
+        auto next_state_ptr = grid_state_ptr->apply(action);
+        if (is_valid_state(*next_state_ptr)) {
+            successor_state_action_pairs.emplace_back(next_state_ptr, action);
+        }
+    }
+    return successor_state_action_pairs;
+}
+
+bool GridWorldDomain::is_valid_state(const DomainState& state) const {
+    auto grid_state_ptr = dynamic_cast<const GridState*>(&state);
+    if (!grid_state_ptr) {
+        cerr << "ERROR: Invalid DomainState. GridState was expected." << endl;
+    }
+    size_t x = grid_state_ptr->x();
+    size_t y = grid_state_ptr->y();
+    return x >= 0 && y >= 0 && x < R_ && y < C_ && (!obstacle_matrix_[x][y]);
+}
+
+void GridWorldDomain::mark_as_explored(const DomainState& state) {
+    auto grid_state_ptr = dynamic_cast<const GridState*>(&state);
+    if (!grid_state_ptr) {
+        cerr << "ERROR: Invalid DomainState. GridState was expected." << endl;
+    }
+    size_t x = grid_state_ptr->x();
+    size_t y = grid_state_ptr->y();
+    exploration_matrix_[x][y] = true;
+}
+
+void GridWorldDomain::mark_all_states_as_unexplored() {
+    exploration_matrix_.clear();
+    exploration_matrix_.resize(R_, vector<bool>(C_, false));
+}
+
+
+// Methods that are unique to GridWorldDomain
+
 
 bool GridWorldDomain::is_obstacle(const GridState& state) const {
     size_t x = state.x();
@@ -40,23 +120,6 @@ bool GridWorldDomain::was_explored(const GridState& state) const {
     size_t x = state.x();
     size_t y = state.y();
     return exploration_matrix_[x][y];
-}
-
-void GridWorldDomain::mark_as_explored(const GridState& state) {
-    size_t x = state.x();
-    size_t y = state.y();
-    exploration_matrix_[x][y] = true;
-}
-
-void GridWorldDomain::mark_all_states_as_unexplored() {
-    exploration_matrix_.clear();
-    exploration_matrix_.resize(R_, vector<bool>(C_, false));
-}
-
-bool GridWorldDomain::is_valid_state(const GridState& state) const {
-    size_t x = state.x();
-    size_t y = state.y();
-    return x >= 0 && y >= 0 && x < R_ && y < C_ && (!obstacle_matrix_[x][y]);
 }
 
 bool GridWorldDomain::is_valid_transition(const GridState& s1, const GridState& action, const GridState& s2) const {
@@ -76,39 +139,6 @@ void GridWorldDomain::initializeDefaultActions() {
     actions_.push_back(GridAction(-1, -1));
     actions_.push_back(GridAction(-1, 0));
     actions_.push_back(GridAction(-1, 1));
-}
-
-void GridWorldDomain::add_skill_action(GridState state, const SkillAction& action) {
-    // operator[] will automatically insert a new pair with an empty vector
-    // if the key doesn't exist.
-    vector<SkillAction>& actions = skill_actions_[state];
-    // SkillAction must have an equality operator defined.
-    if (find(actions.begin(), actions.end(), action) == actions.end()) {
-        GridWorldDomain::skill_actions_[state].push_back(action);
-    } else {
-        cout << "Warning: Attempted to add a duplicate SkillAction under the same label." << endl;
-    }
-}
-
-void GridWorldDomain::print_all_skill_actions() {
-    cout << "Printing all Skill-Actions" << endl;
-    for (const auto& state_actions_pair : skill_actions_) {
-        const auto& state = state_actions_pair.first;
-        const auto& actions = state_actions_pair.second;
-
-        if (!actions.empty()) {
-            // Print out the labels
-            cout << "Grid State: " << state << endl;
-            cout << "\nActions: \n";
-            
-            // Print out the actions
-            for (const auto& action : actions) {
-                action.print_path();
-                // You might want to print more details about each action here
-            }
-            cout << "-----------\n";
-        }
-    }
 }
 
 
@@ -194,45 +224,4 @@ set<GridState> GridWorldDomain::get_obstacle_set() const {
         }
     }
     return obstacles_set;
-}
-
-const vector<GridState>& GridWorldDomain::get_all_states() {
-    if (all_domain_states_.empty()) {
-        // Pre-allocate enough memory for the vector.
-        all_domain_states_.reserve(R_ * C_);
-        for (size_t r = 0; r < R_; ++r) {
-            for (size_t c = 0; c < C_; ++c) {
-                all_domain_states_.emplace_back(r, c);
-            }
-        }
-    }
-    return all_domain_states_;
-}
-
-const vector<GridAction>& GridWorldDomain::get_actions(const GridState& state) const {
-    (void)state; // To avoid compiler's warnings.
-    return actions_;
-}
-
-const vector<GridState> GridWorldDomain::get_successor_states(GridState& curr_state) {
-    vector<GridState> successor_states;
-    for (const auto& action : get_actions(curr_state)) {
-        GridState next_state = curr_state.apply(action);
-        if (is_valid_state(next_state)) {
-            successor_states.push_back(next_state);
-        }
-    }
-    return successor_states;
-}
-
-const vector<pair<GridState, GridAction>> GridWorldDomain::get_successor_state_action_pairs(GridState& curr_state) {
-
-    vector<pair<GridState, GridAction>> successor_state_action_pairs;
-    for (const auto& action : get_actions(curr_state)) {
-        GridState next_state = curr_state.apply(action);
-        if (is_valid_state(next_state)) {
-            successor_state_action_pairs.emplace_back(next_state, action);
-        }
-    }
-    return successor_state_action_pairs;
 }

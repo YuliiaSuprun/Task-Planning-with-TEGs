@@ -3,15 +3,15 @@
 
 #include <iostream>
 #include <ostream>
-#include "GridState.h"
+#include "DomainState.h"
 
 class ProductState {
 public:
-    ProductState(const GridState& domain_state, size_t dfa_state)
+    ProductState(const std::shared_ptr<DomainState> domain_state, size_t dfa_state)
     : domain_state_(domain_state), dfa_state_(dfa_state), heuristic_cost_(INT_MAX) {}
 
     // Accessor methods
-    GridState get_domain_state() const {
+    std::shared_ptr<DomainState> get_domain_state() const {
         return domain_state_;
     }
 
@@ -20,24 +20,24 @@ public:
     }
 
     bool isCached() const { 
-        return domain_state_.isCached();
+        return domain_state_->isCached();
     }
 
     void cache() { 
-        domain_state_.cache();  
+        domain_state_->cache();  
     }
 
     double distance(const ProductState& other) const {
-        return domain_state_.distance(other.domain_state_);
+        return domain_state_->distance(*other.domain_state_);
     }
 
-    int compute_heuristic_cost(const std::set<GridState>& landmarks) {
+    int compute_heuristic_cost(const DomainStateSet& landmarks) {
         if (heuristic_cost_ != INT_MAX) {
             // Has been already computed
             return heuristic_cost_;
         }
         for (const auto& landmark_state : landmarks) {
-            int currentDistance = domain_state_.distance(landmark_state);
+            int currentDistance = domain_state_->distance(*landmark_state);
             if (currentDistance < heuristic_cost_) {
                 heuristic_cost_ = currentDistance;
             }
@@ -46,14 +46,14 @@ public:
     }
 
     bool operator==(const ProductState& other) const {
-        return domain_state_ == other.domain_state_ && dfa_state_ == other.dfa_state_;
+        return *domain_state_ == *(other.domain_state_) && dfa_state_ == other.dfa_state_;
     }
 
     // Need it for set.
     bool operator<(const ProductState& other) const {
-        if (domain_state_ < other.domain_state_) {
+        if (*domain_state_ < *other.domain_state_) {
             return true;
-        } else if (domain_state_ == other.domain_state_ && dfa_state_ < other.dfa_state_) {
+        } else if (*domain_state_ == *other.domain_state_ && dfa_state_ < other.dfa_state_) {
             return true;
         }
         return false;
@@ -62,13 +62,13 @@ public:
     friend std::ostream& operator<<(std::ostream& os, const ProductState& ps);
 
 private:
-    GridState domain_state_;
+    std::shared_ptr<DomainState> domain_state_;
     size_t dfa_state_;
     int heuristic_cost_;
 };
 
 inline std::ostream& operator<<(std::ostream& os, const ProductState& ps) {
-    os << "(" << ps.get_domain_state() << ", DFA: " << ps.get_dfa_state() << ")";
+    os << "(" << *ps.get_domain_state() << ", DFA: " << ps.get_dfa_state() << ")";
     return os;
 }
 

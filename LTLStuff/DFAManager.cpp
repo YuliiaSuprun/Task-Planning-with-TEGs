@@ -145,10 +145,12 @@ bdd DFAManager::get_self_edge_cond(size_t dfa_state) const{
 }
 
 shared_ptr<DFANode> DFAManager::generate_dfa_path() {
+
     while (!nodePriorityQueue_.empty()) {
         auto currentNodePair = nodePriorityQueue_.top();
         nodePriorityQueue_.pop();
         auto currentNode = currentNodePair.second;
+
         // Delete the handle for this node in the map.
         node_handles_.erase(currentNode);
 
@@ -160,11 +162,11 @@ shared_ptr<DFANode> DFAManager::generate_dfa_path() {
             print_dfa_path(dfa_trace);
             return currentNode;
         }
-
         for (auto& edge: get_transitions(current_dfa_state)) {
             size_t next_dfa_state = edge.dst;
 
-            if (next_dfa_state != current_dfa_state && is_transition_feasible(edge.cond)) { 
+            if (next_dfa_state != current_dfa_state && is_transition_feasible(edge.cond)) {
+
                 // Calculate the cost for this transition
                 int edge_cost = dfa_transition_cost(current_dfa_state, next_dfa_state);
                 int total_cost = currentNodePair.first + edge_cost;

@@ -44,10 +44,10 @@ public:
         return isCached_;
     }
 
-    vector<ProductState> path(bool with_end = false) const { 
+    vector<ProductState> path(bool with_end = false) { 
         if (isCached_) {
             // Use std::dynamic_pointer_cast for shared_ptr
-            shared_ptr<const CompoundAction> compoundActionPtr = dynamic_pointer_cast<const CompoundAction>(action_);
+            shared_ptr<CompoundAction> compoundActionPtr = dynamic_pointer_cast<CompoundAction>(action_);
 
             if (!compoundActionPtr) {
                 cerr << "ERROR: compoundActionPtr is null!!!" << endl;

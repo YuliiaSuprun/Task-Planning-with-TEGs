@@ -7,9 +7,9 @@
 #include <chrono>
 
 TEGProblem::TEGProblem(const string formula_str,
-            const map<string, set<GridState>> ap_mapping,
-            const shared_ptr<GridWorldDomain> domain,
-            const GridState& start_domain_state,
+            const map<string, DomainStateSet> ap_mapping,
+            const shared_ptr<Domain> domain,
+            const shared_ptr<DomainState> start_domain_state,
             int problem_id, bool on_the_fly, bool cache, bool feedback, bool use_landmarks)
     : domain_(domain), start_domain_state_(start_domain_state), problem_id_(problem_id), on_the_fly_(on_the_fly), cache_(cache),
     use_landmarks_(use_landmarks),
@@ -22,7 +22,7 @@ TEGProblem::TEGProblem(const string formula_str,
     domain_->mark_all_states_as_unexplored();
 
     // Check if the start state is valid.
-    if (!domain_->is_valid_state(start_domain_state_)) {
+    if (!domain_->is_valid_state(*start_domain_state_)) {
         cerr << "ERROR: Invalid start state in the task domain!" << endl;
     }
 
@@ -49,7 +49,7 @@ TEGProblem::TEGProblem(const string formula_str,
     
     if (!on_the_fly_) {    
         auto start2 = chrono::high_resolution_clock::now();
-        // Compute the product graph of DFA and GridWorldDomain.
+        // Compute the product graph of DFA and Domain graph.
         product_manager_->compute_full_product();
 
         auto end2 = chrono::high_resolution_clock::now();
@@ -96,9 +96,9 @@ void TEGProblem::solve_with_full_graph() {
     while (!queue.empty()) {
         ProductState current_state = queue.front();
         queue.pop_front();
-        domain_->mark_as_explored(current_state.get_domain_state());
+        domain_->mark_as_explored(*current_state.get_domain_state());
 
-        for (const auto& transition : product_manager_->get_transitions(current_state)) {
+        for (auto& transition : product_manager_->get_transitions(current_state)) {
             // Get the product state where this transition leads. 
             ProductState next_state = transition.out_state();
 
@@ -135,11 +135,13 @@ void TEGProblem::solve_with_on_the_fly_graph() {
 
     while (product_path_.empty() && curr_iter < max_num_iters) {
         cout << "=== Iteration " << curr_iter++ << " ===" << endl;
+        // domain_manager_->print_ap_mapping();
         // Pick a "likely" DFA trace that ends in the acceptance state.
         auto endTraceNode = dfa_manager_->generate_dfa_path();
 
         if (!endTraceNode) {
             // No more accepted DFA traces were found.
+            cout << "endTraceNode is null" << endl;
             break;
         }
 
@@ -178,7 +180,7 @@ void TEGProblem::realize_dfa_trace(shared_ptr<DFANode>& endTraceNode) {
     int curr_state_heuristic = 0;
 
     // We need this for computing heuristics.
-    map<size_t, set<GridState>> landmarks;
+    map<size_t, DomainStateSet> landmarks;
 
     if (use_landmarks_) {
         auto next_dfa_edge_condition = dfa_nodes.at(1)->getParentEdgeCondition();
@@ -209,7 +211,7 @@ void TEGProblem::realize_dfa_trace(shared_ptr<DFANode>& endTraceNode) {
         ProductState current_state = current_state_pair.second;
         // cout << "Popped the state " << current_state << " with score " << current_state_pair.first << endl;
         queue.pop();
-        domain_->mark_as_explored(current_state.get_domain_state());
+        domain_->mark_as_explored(*current_state.get_domain_state());
 
         // Check if state was expanded?
         // If not, then generate successors for this state!
@@ -218,7 +220,7 @@ void TEGProblem::realize_dfa_trace(shared_ptr<DFANode>& endTraceNode) {
             product_manager_->generate_successors(current_state);
         }
 
-        for (const auto& transition : product_manager_->get_transitions(current_state)) {
+        for (auto& transition : product_manager_->get_transitions(current_state)) {
             // Get the product state where this transition leads. 
             ProductState next_state = transition.out_state();
 
@@ -284,7 +286,6 @@ void TEGProblem::realize_dfa_trace(shared_ptr<DFANode>& endTraceNode) {
                     auto next_dfa_edge_condition = dfa_nodes.at(currentRegionIndex + 1)->getParentEdgeCondition();
                     landmarks[next_dfa_state] = product_manager_->sample_landmarks(next_dfa_edge_condition, next_state.get_domain_state());
                     if (landmarks[next_dfa_state].empty()) {
-                        cout << "landmarks[next_dfa_state].empty() for " << next_dfa_state << endl;
                         dfa_manager_->update_dfa_transition_cost(dfa_nodes.at(maxRegionIndexReached + 1), FAILURE_COST);
                         return;
                     }
@@ -356,7 +357,7 @@ void TEGProblem::save_paths() {
     }
 }
 
-vector<GridState> TEGProblem::get_domain_path() const {
+vector<shared_ptr<DomainState>> TEGProblem::get_domain_path() const {
     return domain_path_;
 }
 
@@ -376,11 +377,11 @@ void TEGProblem::print_product_path() const {
 }
 
 void TEGProblem::print_domain_path() const {
-    std::cout << "Grid Path:" << endl;
+    std::cout << "Domain Path:" << endl;
     if (!domain_path_.empty()) {
-        std::cout << domain_path_.front();
+        std::cout << *domain_path_.front();
         for (auto it = next(domain_path_.begin()); it != domain_path_.end(); ++it) {
-            std::cout << " -> " << *it;
+            std::cout << " -> " << **it;
         }
     }
     std::cout << endl;
@@ -390,7 +391,7 @@ void TEGProblem::print_dfa_path() const {
     dfa_manager_->print_dfa_path(dfa_path_);
 }
 
-map<string, set<GridState>> TEGProblem::get_ap_mapping() const {
+map<string, DomainStateSet> TEGProblem::get_ap_mapping() const {
     return formula_.get_ap_mapping();
 }
 

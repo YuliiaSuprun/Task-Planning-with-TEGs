@@ -26,7 +26,7 @@ void ProductManager::compute_full_product() {
 
     product_transitions_.clear();
 
-    // Compute transitions in the product based on valid transitions in both the GridWorld and the DFA.
+    // Compute transitions in the product based on valid transitions in both the domain graph and the DFA.
     for (const auto& prod_state : product_states_) {
         generate_successors(prod_state);
     }
@@ -34,11 +34,12 @@ void ProductManager::compute_full_product() {
 
 void ProductManager::generate_successors(const ProductState& prod_state) {
     size_t dfa_state = prod_state.get_dfa_state();
-    GridState domain_state = prod_state.get_domain_state();
+    // cout << "Generating successors for dfa state " << dfa_state << endl;
+    shared_ptr<DomainState> domain_state = prod_state.get_domain_state();
 
     // Add transitions based on "primitive" actions in the domain.
-    for (const auto& state_action_pair : domain_manager_->get_successor_state_action_pairs(domain_state)) {
-        GridState next_domain_state = state_action_pair.first;
+    for (const auto& state_action_pair : domain_manager_->get_successor_state_action_pairs(*domain_state)) {
+        shared_ptr<DomainState> next_domain_state = state_action_pair.first;
         GridAction next_action = state_action_pair.second;
 
         bdd next_domain_state_bdd = domain_manager_->get_state_bdd(next_domain_state);
@@ -93,14 +94,14 @@ void ProductManager::print_product_transitions(int in_dfa_state, int out_dfa_sta
     }
 }
 
-set<GridState> ProductManager::sample_landmarks(const bdd& edge_cond, const GridState& curr_domain_state, size_t num_landmarks) {
+DomainStateSet ProductManager::sample_landmarks(const bdd& edge_cond, const shared_ptr<DomainState> curr_domain_state, size_t num_landmarks) {
     auto curr_state_bdd = domain_manager_->get_state_bdd(curr_domain_state);
 
-    vector<GridState> potential_landmarks;
+    vector<shared_ptr<DomainState>> potential_landmarks;
 
     for (const auto& pair : domain_manager_->get_bdd_to_states_map()) {
         bdd equiv_group_bdd = pair.first;
-        const set<GridState>& domain_states = pair.second;
+        const DomainStateSet& domain_states = pair.second;
 
         if (equiv_group_bdd == curr_state_bdd) {
             // Skip it: this is the current equivalence group.
@@ -119,7 +120,7 @@ set<GridState> ProductManager::sample_landmarks(const bdd& edge_cond, const Grid
     mt19937 g(rd());
     shuffle(potential_landmarks.begin(), potential_landmarks.end(), g);
 
-    set<GridState> landmarks;
+    DomainStateSet landmarks;
     for (size_t i = 0; i < min(num_landmarks, potential_landmarks.size()); ++i) {
         landmarks.insert(potential_landmarks[i]);
     }

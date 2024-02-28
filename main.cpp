@@ -37,21 +37,26 @@ int main() {
     domain->create_random_obstacle_matrix(0.1);
 
     // Define default locations for atomic propositions
-    GridState goal(1, 19);
-    GridState checkpoint1(19, 19);
-    GridState checkpoint2(15, 10);
-    GridState checkpoint3(1, 5);
+    auto goal = make_shared<GridState>(1, 19);
+    auto checkpoint1 = make_shared<GridState>(19, 19);
+    auto checkpoint2 = make_shared<GridState>(15, 10);
+    auto checkpoint3 = make_shared<GridState>(1, 5);
     // Creat a set of hazardous locations.
-    set<GridState> hazards;
+    DomainStateSet hazards;
     for (size_t i = 5; i < 21; ++i) {
-        hazards.emplace(5, i);
+        hazards.insert(make_shared<GridState>(5, i));
     }
 
     // Use a shared mapping of atomic propositions to grid domain states.
-    map<string, set<GridState>> ap_mapping {{"g", set<GridState>{goal}}, {"h", hazards}, {"c1", set<GridState>{checkpoint1}}, {"c2", set<GridState>{checkpoint2}}, {"c3", set<GridState>{checkpoint3}}};
+    map<string, DomainStateSet> ap_mapping {
+        {"g", DomainStateSet{goal}}, 
+        {"h", hazards}, 
+        {"c1", DomainStateSet{checkpoint1}}, 
+        {"c2", DomainStateSet{checkpoint2}}, 
+        {"c3", DomainStateSet{checkpoint3}}};
 
     // Create a list of LTLf formulas that we want to plan for.
-    vector<pair<string, map<string, set<GridState>>>> ltl_formula_list = {
+    vector<pair<string, map<string, DomainStateSet>>> ltl_formula_list = {
     // Eventually reach a goal.
     {"F g", ap_mapping},
     // Reach a goal, while avoiding hazards.
@@ -63,17 +68,16 @@ int main() {
     // Reach multiple 2 checkpoints and goal (in specific order), while avoiding hazards.
     {"(F c1) & G(c1 -> ((F c2) & G(c2 -> Fg))) & G(!h)", ap_mapping},
     // Reach multiple 3 checkpoints and goal (in specific order), while avoiding hazards.
-    {"(F c1) & G(c1 -> ((F c2) & G(c2 -> ((F c3) & G(c3 -> Fg))))) & G(!h)", ap_mapping}
-    };
+    {"(F c1) & G(c1 -> ((F c2) & G(c2 -> ((F c3) & G(c3 -> Fg))))) & G(!h)", ap_mapping}};
 
     // Set the starting grid state.
-    GridState start_grid_state(1, 0);
+    auto start_grid_state = make_shared<GridState>(1, 0);
 
     // Iterate over all formulas and solve the TEGProblem for each of them.
     for (size_t problem_id = 0; problem_id < ltl_formula_list.size(); ++problem_id) {
-        pair<string, map<string, set<GridState>>> formula_pair = ltl_formula_list.at(problem_id);
+        auto formula_pair = ltl_formula_list.at(problem_id);
         string formula = formula_pair.first;
-        map<string, set<GridState>> ap_mapping = formula_pair.second;
+        auto ap_mapping = formula_pair.second;
 
         cout << "Solving for problem_id=" << problem_id << " and formula=" << formula << endl;
 

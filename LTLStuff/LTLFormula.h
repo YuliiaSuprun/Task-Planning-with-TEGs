@@ -9,7 +9,7 @@
 #include <spot/tl/formula.hh>
 #include <spot/tl/parse.hh>
 #include <spot/tl/print.hh>
-#include "GridState.h"
+#include "DomainState.h"
 
 using namespace std;
 
@@ -37,14 +37,14 @@ in order to mark it as accepting.)
 class LTLFormula {
 public:
     LTLFormula(const string& formula, 
-               const map<string, set<GridState>>& ap_mapping)
+               const map<string, DomainStateSet>& ap_mapping)
         : formula_(formula), ap_mapping_(ap_mapping) {}
     
     // Default constructor
     LTLFormula() : formula_(""), ap_mapping_() {}
 
     string get_formula() const { return formula_; }
-    map<string, set<GridState>> get_ap_mapping() const { return ap_mapping_; }
+    map<string, DomainStateSet> get_ap_mapping() const { return ap_mapping_; }
 
     // Function to return Spot's formula
     spot::formula get_spot_formula() const {
@@ -62,7 +62,7 @@ public:
 
 private:
     string formula_;
-    map<string, set<GridState>> ap_mapping_;
+    map<string, DomainStateSet> ap_mapping_;
 };
 
 // Definition of the overloaded << operator for LTLFormula

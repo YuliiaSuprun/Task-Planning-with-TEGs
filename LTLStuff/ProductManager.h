@@ -8,7 +8,6 @@
 #include <random>
 #include "ProductState.h"
 #include "ProductTransition.h"
-#include "GridWorldDomain.h"
 #include "DFAManager.h"
 #include "DomainManager.h"
 
@@ -28,7 +27,7 @@ public:
 
     void print_product_transitions(int in_dfa_state=-1, int out_dfa_state=-1);
 
-    set<GridState> sample_landmarks(const bdd& edge_cond, const GridState& curr_domain_state, size_t num_landmarks=NUM_LANDMARKS);
+    DomainStateSet sample_landmarks(const bdd& edge_cond, const shared_ptr<DomainState> curr_domain_state, size_t num_landmarks=NUM_LANDMARKS);
 
 private:
     std::shared_ptr<DomainManager> domain_manager_;
