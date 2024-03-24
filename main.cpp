@@ -15,6 +15,7 @@
 
 using namespace std;
 
+// ./run.sh /Users/yuliiasuprun/Desktop/Classes/AlgoRobotics/Research/Code/pddlboat/resources/blocks/blockworld.pddl /Users/yuliiasuprun/Desktop/Classes/AlgoRobotics/Research/Code/pddlboat/resources/blocks/p00.pddl
 
 int main(int argc, char** argv) {
     if (argc < 3) {
@@ -30,11 +31,14 @@ int main(int argc, char** argv) {
     shared_ptr<PDDLProblem> pddlProblem;
     try {
         pddlDomain = make_shared<PDDLDomain>(domainFilePath);
-        // pddlProblem = make_shared<PDDLProblem>(problemFilePath, pddlDomain);
+        pddlProblem = make_shared<PDDLProblem>(problemFilePath, pddlDomain);
     } catch (const std::exception& e) {
         cerr << "Error: " << e.what() << endl;
         exit(EXIT_FAILURE);
     }
+
+    // Do not forget to set a problem!!
+    pddlDomain->setProblem(pddlProblem->getPddlboatProblemPtr());
 
     return 0;
 }

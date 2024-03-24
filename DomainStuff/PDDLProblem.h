@@ -3,13 +3,18 @@
 
 #include "PDDLDomain.h" 
 
+
+
 class PDDLProblem {
 public:
     explicit PDDLProblem(const std::string& problemFile, std::shared_ptr<PDDLDomain> domainPtr);
     virtual ~PDDLProblem() = default;
 
+    // Method to get the wrapped pddlboat::Problem
+    const pddlboat::ProblemPtr& getPddlboatProblemPtr() const;
+
 private:
-    std::shared_ptr<pddlboat::Problem> pddlProblem_;
+    pddlboat::ProblemPtr pddlProblem_;
     void parseProblem(const std::string& problemFile, std::shared_ptr<PDDLDomain> domainPtr);
 };
 

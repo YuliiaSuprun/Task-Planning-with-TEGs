@@ -20,7 +20,7 @@ public:
     }
 
     // Apply a GridAction to the current state and return the resulting state.
-    std::shared_ptr<DomainState> apply(const PrimitiveAction& action) const override {
+    std::shared_ptr<DomainState> apply(const PrimitiveAction& action) const {
         auto grid_action_ptr = dynamic_cast<const GridAction*>(&action);
         if (!grid_action_ptr) {
             std::cerr << "ERROR: invalid action. GridAction was expected." << std::endl;

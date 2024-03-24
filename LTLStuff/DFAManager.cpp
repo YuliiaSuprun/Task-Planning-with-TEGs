@@ -164,7 +164,7 @@ shared_ptr<DFANode> DFAManager::generate_dfa_path() {
         }
         for (auto& edge: get_transitions(current_dfa_state)) {
             size_t next_dfa_state = edge.dst;
-
+            // TODO: PDDL doesn't support is_transition_feasible() yet
             if (next_dfa_state != current_dfa_state && is_transition_feasible(edge.cond)) {
 
                 // Calculate the cost for this transition

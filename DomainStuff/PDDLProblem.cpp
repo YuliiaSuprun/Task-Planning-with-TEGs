@@ -23,3 +23,7 @@ void PDDLProblem::parseProblem(const std::string& problemFile, std::shared_ptr<P
         throw std::runtime_error("Exception translating problem: " + std::string(e.what()));
     }
 }
+
+const pddlboat::ProblemPtr& PDDLProblem::getPddlboatProblemPtr() const {
+    return pddlProblem_;
+}

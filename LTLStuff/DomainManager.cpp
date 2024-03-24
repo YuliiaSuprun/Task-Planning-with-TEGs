@@ -13,7 +13,8 @@ DomainManager::DomainManager(shared_ptr<spot::bdd_dict> bddDict, shared_ptr<Doma
     // Print the "proposition to bdd" mapping.
     // bdd_dict_->dump(std::std::cout) << "---\n";
 
-    // Initialize the BDD-to-state mapping and state-to-BDD mapping
+    // Initialize the BDD-to-state mapping and state-to-BDD mapping for easy domains (GridWorld)
+    // TODO: generate a subset of states relevant to the problem description.
     for (const auto& domain_state_ptr : get_all_domain_states()) {
         bdd domain_state_bdd = generate_bdd(domain_state_ptr);
 
@@ -69,11 +70,25 @@ bdd DomainManager::generate_bdd(const shared_ptr<DomainState> domain_state) {
     conjunction of the atomic propositions (positive and negative).
 */
 bdd DomainManager::get_state_bdd(const shared_ptr<DomainState> domain_state) {
-    return state_to_bdd_[domain_state];
+    // Lazy generation.
+    auto it = state_to_bdd_.find(domain_state);
+    if (it != state_to_bdd_.end()) {
+        // BDD already generated for this state, return it
+        return it->second;
+    } else {
+        // Generate BDD for the new state
+        bdd state_bdd = generate_bdd(domain_state);
+
+        // Update mappings
+        bdd_to_states_[state_bdd].insert(domain_state);
+        state_to_bdd_[domain_state] = state_bdd;
+
+        return state_bdd;
+    }
 }
 
 DomainStateSet& DomainManager::get_equivalence_region(bdd& equiv_region_bdd) {
-    return bdd_to_states_[equiv_region_bdd];
+    return bdd_to_states_.at(equiv_region_bdd);
 }
 
 set<string> DomainManager::atomic_props(const shared_ptr<DomainState> domain_state) {
