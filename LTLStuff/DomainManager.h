@@ -15,7 +15,7 @@ using namespace std;
 
 class DomainManager {
 public:
-    DomainManager(shared_ptr<spot::bdd_dict> bddDict, shared_ptr<Domain> domain, const map<string, DomainStateSet> ap_mapping);
+    DomainManager(shared_ptr<spot::bdd_dict> bddDict, shared_ptr<Domain> domain, const map<string, DomainStateSet> ap_mapping={});
 
     const vector<shared_ptr<DomainState>>& get_all_domain_states();
 

@@ -37,7 +37,7 @@ in order to mark it as accepting.)
 class LTLFormula {
 public:
     LTLFormula(const string& formula, 
-               const map<string, DomainStateSet>& ap_mapping)
+               const map<string, DomainStateSet>&ap_mapping={})
         : formula_(formula), ap_mapping_(ap_mapping) {}
     
     // Default constructor
