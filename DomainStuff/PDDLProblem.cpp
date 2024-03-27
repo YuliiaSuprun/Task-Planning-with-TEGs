@@ -15,15 +15,12 @@ PDDLProblem::PDDLProblem(const string& problemFile, shared_ptr<PDDLDomain> domai
     // Set a start position.
     start_domain_state_ = make_shared<PDDLState>(pddlProblem_->start);
 
+    map<string, pair<string, vector<string>>> pred_mapping;
     // Set a mapping from propositions to grounded predicates.
-    pddlProblem_->goal->getAtomicPropsMap(pred_mapping_);
+    pddlProblem_->goal->getAtomicPropsMap(pred_mapping);
 
-    // Initialize all managers.
-    domain_manager_ = make_shared<DomainManager>(bdd_dict_, domain_, pred_mapping_);
-
+    // Initialize a dfa manager.
     dfa_manager_ = make_shared<DFAManager>(bdd_dict_, feedback);
-
-    product_manager_ = make_shared<ProductManager>(domain_manager_, dfa_manager_);
 
     std::cout << "Creating dfa for problem_id=" << problem_id_ << endl;
     // Get a name for output files.
@@ -34,7 +31,7 @@ PDDLProblem::PDDLProblem(const string& problemFile, shared_ptr<PDDLDomain> domai
     auto start1 = chrono::high_resolution_clock::now();
 
     // Convert to formula_str to LTLFormula object.
-    formula_ = LTLFormula(pddlProblem_->goal->toLTL());
+    formula_ = LTLFormula(pddlProblem_->goal->toLTL(), pred_mapping);
 
     // Compute the DFA corresponding to the given LTL formula.
     dfa_manager_->construct_dfa(formula_);
@@ -44,7 +41,12 @@ PDDLProblem::PDDLProblem(const string& problemFile, shared_ptr<PDDLDomain> domai
     std::cout << "time of calculating the automaton: " << elapsed_dfa.count() << " seconds" << std::endl;
 
     // dfa_manager_->print_dfa();
-    dfa_manager_->save_dfa(filename_);
+    // dfa_manager_->save_dfa(filename_);
+
+    // Initialize domain and product managers.
+    domain_manager_ = make_shared<DomainManager>(bdd_dict_, domain_, get_pred_mapping());
+
+    product_manager_ = make_shared<ProductManager>(domain_manager_, dfa_manager_);
 }
 
 PDDLProblem::~PDDLProblem() {
@@ -352,5 +354,5 @@ string PDDLProblem::get_filename() const {
 }
 
 map<string, pair<string, vector<string>>> PDDLProblem::get_pred_mapping() const {
-    return pred_mapping_;
+    return formula_.get_pred_mapping();
 }

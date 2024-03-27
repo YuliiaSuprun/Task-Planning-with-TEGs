@@ -69,8 +69,6 @@ private:
     vector<size_t> dfa_path_;
 
     string filename_;
-
-    map<string, pair<string, vector<string>>> pred_mapping_;
 };
 
 #endif // PDDL_PROBLEM_H
