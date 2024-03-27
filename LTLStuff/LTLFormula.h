@@ -5,6 +5,7 @@
 #include <map>
 #include <set>
 #include <iostream>
+#include <algorithm>
 
 #include <spot/tl/formula.hh>
 #include <spot/tl/parse.hh>
@@ -38,7 +39,13 @@ class LTLFormula {
 public:
     LTLFormula(const string& formula, 
                const map<string, DomainStateSet>&ap_mapping={})
-        : formula_(formula), ap_mapping_(ap_mapping) {}
+        : formula_(formula), ap_mapping_(ap_mapping) {
+            // Check if the character '-' is in the formula 
+            // (SPOT doesn't like it for some reason)
+            if (formula_.find('-') != std::string::npos) {
+                std::replace(formula_.begin(), formula_.end(), '-', '_');
+            }
+        }
     
     // Default constructor
     LTLFormula() : formula_(""), ap_mapping_() {}
