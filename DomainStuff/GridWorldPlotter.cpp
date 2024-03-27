@@ -89,7 +89,7 @@ void GridWorldPlotter::visualize_path(const TEGProblem& problem) {
     }
 
     // Draw the label-color mapping
-    auto labelToColorMapping = problem.get_ap_mapping();
+    auto labelToColorMapping = problem.get_ap_to_states_mapping();
     for (const auto& pair : labelToColorMapping) {
         const std::string& label = pair.first;
         for (const auto& gridState : pair.second) {

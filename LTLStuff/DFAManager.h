@@ -26,6 +26,8 @@ public:
     // Constructor
     DFAManager(shared_ptr<spot::bdd_dict> bddDict, set<bdd, BddComparator> equivalence_regions, bool feedback);
 
+    DFAManager(shared_ptr<spot::bdd_dict> bddDict, bool feedback);
+
     // Convert LTL formula to DFA
     void construct_dfa(const LTLFormula& formula);
 
@@ -74,6 +76,9 @@ private:
 
     // Map to store the cost of transitions
     map<pair<size_t, size_t>, int> dfa_transition_costs_;
+
+    // Use for PDDL problems.
+    bool use_pred_mapping_;
 };
 
 #endif // DFAUTILITY_H

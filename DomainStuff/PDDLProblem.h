@@ -25,27 +25,28 @@ using namespace std;
 
 class PDDLProblem {
 public:
-    explicit PDDLProblem(const string& problemFile, shared_ptr<PDDLDomain> domainPtr, bool cache=false, bool feedback=false, bool use_landmarks=false, int problem_id=0);
-    virtual ~PDDLProblem() = default;
+    PDDLProblem(const string& problemFile, shared_ptr<PDDLDomain> domainPtr, bool cache=false, bool feedback=false, bool use_landmarks=false, int problem_id=0);
+    ~PDDLProblem();
 
     // Method to get the wrapped pddlboat::Problem
     const pddlboat::ProblemPtr& getPddlboatProblemPtr() const;
-    // vector<ProductState> solve();
-    // vector<shared_ptr<DomainState>> get_domain_path() const;
-    // vector<size_t> get_dfa_path() const;
+    vector<ProductState> solve();
+    vector<shared_ptr<DomainState>> get_domain_path() const;
+    vector<size_t> get_dfa_path() const;
 
-    // string get_filename() const;
+    string get_filename() const;
+    map<string, pair<string, vector<string>>> get_pred_mapping() const;
 
-    // void print_product_path() const;
-    // void print_domain_path() const;
-    // void print_dfa_path() const;
+    void print_product_path() const;
+    void print_domain_path() const;
+    void print_dfa_path() const;
 
 private:
     void parseProblem(const string& problemFile, shared_ptr<PDDLDomain> domainPtr);
-    // void save_paths();
-    // void realize_dfa_trace(shared_ptr<DFANode>& endTraceNode);
+    void save_paths();
+    void realize_dfa_trace(shared_ptr<DFANode>& endTraceNode);
 
-    // vector<ProductState> construct_path(const map<ProductState, vector<ProductState>>& parent_map, ProductState target_state, bool cached=false, size_t start_dfa_state=0);
+    vector<ProductState> construct_path(const map<ProductState, vector<ProductState>>& parent_map, ProductState target_state, bool cached=false, size_t start_dfa_state=0);
 
     pddlboat::ProblemPtr pddlProblem_;
     LTLFormula formula_;
@@ -68,6 +69,8 @@ private:
     vector<size_t> dfa_path_;
 
     string filename_;
+
+    map<string, pair<string, vector<string>>> pred_mapping_;
 };
 
 #endif // PDDL_PROBLEM_H

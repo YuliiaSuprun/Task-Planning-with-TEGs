@@ -7,14 +7,14 @@
 #include <chrono>
 
 TEGProblem::TEGProblem(const string formula_str,
-            const map<string, DomainStateSet> ap_mapping,
+            const map<string, DomainStateSet> ap_to_states_mapping,
             const shared_ptr<Domain> domain,
             const shared_ptr<DomainState> start_domain_state,
             int problem_id, bool on_the_fly, bool cache, bool feedback, bool use_landmarks)
     : domain_(domain), start_domain_state_(start_domain_state), problem_id_(problem_id), on_the_fly_(on_the_fly), cache_(cache),
     use_landmarks_(use_landmarks),
     bdd_dict_(make_shared<spot::bdd_dict>()),
-    domain_manager_(make_shared<DomainManager>(bdd_dict_, domain_, ap_mapping)),
+    domain_manager_(make_shared<DomainManager>(bdd_dict_, domain_, ap_to_states_mapping)),
     dfa_manager_(make_shared<DFAManager>(bdd_dict_, domain_manager_->get_all_equivalence_regions(), feedback)),
     product_manager_(make_shared<ProductManager>(domain_manager_, dfa_manager_))
     { 
@@ -35,7 +35,7 @@ TEGProblem::TEGProblem(const string formula_str,
     auto start1 = chrono::high_resolution_clock::now();
 
     // Convert to formula_str to LTLFormula object.
-    formula_ = LTLFormula(formula_str, ap_mapping);
+    formula_ = LTLFormula(formula_str, ap_to_states_mapping);
 
     // Compute the DFA corresponding to the given LTL formula.
     dfa_manager_->construct_dfa(formula_);
@@ -135,7 +135,7 @@ void TEGProblem::solve_with_on_the_fly_graph() {
 
     while (product_path_.empty() && curr_iter < max_num_iters) {
         cout << "=== Iteration " << curr_iter++ << " ===" << endl;
-        // domain_manager_->print_ap_mapping();
+        // domain_manager_->print_ap_to_states_mapping();
         // Pick a "likely" DFA trace that ends in the acceptance state.
         auto endTraceNode = dfa_manager_->generate_dfa_path();
 
@@ -391,7 +391,7 @@ void TEGProblem::print_dfa_path() const {
     dfa_manager_->print_dfa_path(dfa_path_);
 }
 
-map<string, DomainStateSet> TEGProblem::get_ap_mapping() const {
+map<string, DomainStateSet> TEGProblem::get_ap_to_states_mapping() const {
     return formula_.get_ap_mapping();
 }
 

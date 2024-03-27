@@ -55,42 +55,89 @@ int main(int argc, char** argv) {
     // Do not forget to set a problem!!
     pddlDomain->setProblem(pddlboatProblem);
 
-    // Step 1: Convert problem goal into LTLf formula as a string.
-    pddlboat::ExpressionPtr goalExpression = pddlboatProblem->goal;
-    cout << "The goal is defined as follows: " << endl;
-    goalExpression->toPDDL(std::cout) << std::endl;
+    auto start = chrono::high_resolution_clock::now();
 
-    auto ltlStr = goalExpression->toLTL();
-    cout << "The goal in the LTL format: " << ltlStr << endl;
+    // Solve the problem and get the solution path
+    vector<ProductState> solution_path = pddlProblem->solve();
 
-    auto startState = pddlboatProblem->start; 
-    std::vector<pddlboat::State::Key> allTruePreds = startState->getTruePredicates();
-    for (const auto& key : allTruePreds) {
-        cout << "Predicate is " << key.first << " with assignment: " << endl;
-        for (const auto& value : key.second) {
-            cout << value << "; ";
-        }
-        cout << "=====" << endl;
+    auto end = chrono::high_resolution_clock::now();
+    chrono::duration<double> elapsed = end - start;
+    std::cout << "Time of searching for a solution: " << elapsed.count() << " seconds" << std::endl;
+
+    if (!solution_path.empty()) {
+        cout << "Solution for problem is:" << endl;
+        pddlProblem->print_product_path();
+        pddlProblem->print_domain_path();
+        pddlProblem->print_dfa_path();
+    } else {
+        cout << "No solution found for problem" << endl;
     }
 
-    // Step 2: Generate a mapping from all grounded predicates to atomic propositions.
+    // // Step 1: Convert problem goal into LTLf formula as a string.
+    // pddlboat::ExpressionPtr goalExpression = pddlboatProblem->goal;
+    // cout << "The goal is defined as follows: " << endl;
+    // goalExpression->toPDDL(std::cout) << std::endl;
 
-    // Step 3: Pass a string LTLf formula and ap_mapping to the TEGProblem and solve it!
+    // auto ltlStr = goalExpression->toLTL();
+    // cout << "The goal in the LTL format: " << ltlStr << endl;
+
+    // pddlboat::VariableSet vars;
+    // goalExpression->getVariables(vars);
+    // cout << "Printing variables: ";
+    // for (const auto& var : vars.getNames()) {
+    //     cout << var << ", ";
+    // }
+    // cout << endl;
+
+    // auto startState = pddlboatProblem->start; 
+    // pddlboat::Assignment ass;
+
+
+    // set<string> predicates;
+    // cout << "Printing the used predicates: ";
+    // goalExpression->getUsedPredicates(predicates, startState, ass);
+    // for (const auto& pred : predicates) {
+    //     cout << pred << ", ";
+    // }
+    // cout << endl;
+
+    // cout << endl << "Printing the predicate mapping: ";
+
+    // // The value contains the name of the predicate and its grounding (a vector of objects).
+    // map<string, pair<string, vector<string>>> pred_mapping;
+
+    // goalExpression->getAtomicPropsMap(pred_mapping);
+    // for (const auto& pred_pair : pred_mapping) {
+    //     cout << pred_pair.first << ": predicate is " << pred_pair.second.first << " with grounding: ";
+    //     for (const auto& value : pred_pair.second.second) {
+    //         cout << value << "; ";
+    //     }
+    //     cout << "=====" << endl;
+    // }
+    
+    // std::vector<pddlboat::State::Key> allTruePreds = startState->getTruePredicates();
+    // for (const auto& key : allTruePreds) {
+    //     cout << "Predicate is " << key.first << " with assignment: " << endl;
+    //     for (const auto& value : key.second) {
+    //         cout << value << "; ";
+    //     }
+    //     cout << "=====" << endl;
+    // }
 
     // Solve the problem
-    pddlboat::Z3Planner::Options options;
-    // options.dump_clauses = true;
-    // options.horizon.max = 4;
-    // auto task_planner = make_shared<pddlboat::Z3Planner>(pddlboatProblem, options);
-    auto task_planner = make_shared<pddlboat::AStarPlanner>(pddlboatProblem);
+    // pddlboat::Z3Planner::Options options;
+    // // options.dump_clauses = true;
+    // // options.horizon.max = 4;
+    // // auto task_planner = make_shared<pddlboat::Z3Planner>(pddlboatProblem, options);
+    // auto task_planner = make_shared<pddlboat::AStarPlanner>(pddlboatProblem);
 
-    cout << "Plan:" << endl;
-    auto plan = make_shared<pddlboat::Plan>(pddlboatProblem);
-    if (!task_planner->solve(*plan))
-    {
-        cerr << "Failed to solve!" << endl;
-        return 1;
-    }
-    cout << *plan << endl;
+    // cout << "Plan:" << endl;
+    // auto plan = make_shared<pddlboat::Plan>(pddlboatProblem);
+    // if (!task_planner->solve(*plan))
+    // {
+    //     cerr << "Failed to solve!" << endl;
+    //     return 1;
+    // }
+    // cout << *plan << endl;
     return 0;
 }

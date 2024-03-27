@@ -7,7 +7,10 @@ using namespace std;
 
 DFAManager::DFAManager(shared_ptr<spot::bdd_dict> bddDict, set<bdd, BddComparator> equivalence_regions, bool feedback)
     : bdd_dict_(bddDict), equivalence_regions_(equivalence_regions),
-    feedback_(feedback) {}
+    feedback_(feedback), use_pred_mapping_(false) {}
+
+DFAManager::DFAManager(shared_ptr<spot::bdd_dict> bddDict, bool feedback)
+    : bdd_dict_(bddDict), feedback_(feedback), use_pred_mapping_(true) {}
 
 void DFAManager::construct_dfa(const LTLFormula& formula) {
     spot::formula spot_formula = formula.get_spot_formula();
@@ -257,6 +260,11 @@ bool DFAManager::is_transition_valid(const bdd& edge_cond, const bdd& next_state
 }
 
 bool DFAManager::is_transition_feasible(const bdd& edge_cond) {
+    if (use_pred_mapping_) {
+        // Equivalence regions are not used.
+        // TODO: come up with something else.
+        return true;
+    }
     for (const auto& region_bdd : equivalence_regions_) {
         if (is_transition_valid(edge_cond, region_bdd)) {
             // At least one equivalence region satisfies the transition.

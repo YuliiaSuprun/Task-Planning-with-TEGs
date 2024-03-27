@@ -26,7 +26,7 @@ using namespace std;
 class TEGProblem {
 public:
     TEGProblem(const string formula_str,
-            const map<string, DomainStateSet> ap_mapping,
+            const map<string, DomainStateSet> ap_to_states_mapping,
             const shared_ptr<Domain> domain,
             const shared_ptr<DomainState> start_domain_state,
             int problem_id = 0, bool on_the_fly=false, bool cache=false, bool feedback=false, bool use_landmarks=false);
@@ -36,7 +36,7 @@ public:
     vector<ProductState> solve();
     vector<shared_ptr<DomainState>> get_domain_path() const;
     vector<size_t> get_dfa_path() const;
-    map<string, DomainStateSet> get_ap_mapping() const;
+    map<string, DomainStateSet> get_ap_to_states_mapping() const;
     string get_filename() const;
 
     void print_product_path() const;
