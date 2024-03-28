@@ -3,10 +3,10 @@
 #include <pddlboat/parser/translator.hpp>
 #include <iostream>
 
-PDDLProblem::PDDLProblem(const string& problemFile, shared_ptr<PDDLDomain> domainPtr, bool cache, bool feedback, bool use_landmarks, int problem_id) 
+PDDLProblem::PDDLProblem(const string& problemFile, shared_ptr<PDDLDomain> domainPtr, bool cache, bool feedback, bool use_landmarks, bool hamming_dist, int problem_id) 
 : domain_(domainPtr), problem_id_(problem_id), cache_(cache),
-    use_landmarks_(use_landmarks),
-    bdd_dict_(make_shared<spot::bdd_dict>()) {
+feedback_(feedback), use_landmarks_(use_landmarks),
+hamming_dist_(hamming_dist), bdd_dict_(make_shared<spot::bdd_dict>()) {
 
     parseProblem(problemFile, domainPtr);
     cout << "Problem was parsed!!!" << endl;
@@ -20,7 +20,7 @@ PDDLProblem::PDDLProblem(const string& problemFile, shared_ptr<PDDLDomain> domai
     pddlProblem_->goal->getAtomicPropsMap(pred_mapping);
 
     // Initialize a dfa manager.
-    dfa_manager_ = make_shared<DFAManager>(bdd_dict_, feedback);
+    dfa_manager_ = make_shared<DFAManager>(bdd_dict_, feedback_, hamming_dist_);
 
     std::cout << "Creating dfa for problem_id=" << problem_id_ << endl;
     // Get a name for output files.
@@ -41,7 +41,7 @@ PDDLProblem::PDDLProblem(const string& problemFile, shared_ptr<PDDLDomain> domai
     std::cout << "time of calculating the automaton: " << elapsed_dfa.count() << " seconds" << std::endl;
 
     // dfa_manager_->print_dfa();
-    // dfa_manager_->save_dfa(filename_);
+    dfa_manager_->save_dfa(filename_);
 
     // Initialize domain and product managers.
     domain_manager_ = make_shared<DomainManager>(bdd_dict_, domain_, get_pred_mapping());
@@ -195,6 +195,21 @@ void PDDLProblem::realize_dfa_trace(shared_ptr<DFANode>& endTraceNode) {
             next_dfa_state != dfa_trace.at(currentRegionIndex + 1)) {
                 // cout << "SKIP: an illegal DFA transition: " << curr_dfa_state << "=>" << next_dfa_state << endl;
                 // Skip states that lead to any other dfa states.
+                // Update cost for this transition to 0.
+                if (feedback_) {
+                    dfa_manager_->update_dfa_transition_cost(curr_dfa_state, next_dfa_state, SUCCESS_COST);
+                }
+                // if (feedback_ && dfa_manager_->dfa_transition_cost(curr_dfa_state, next_dfa_state) != SUCCESS_COST) {
+                //     dfa_manager_->update_dfa_transition_cost(curr_dfa_state, next_dfa_state, SUCCESS_COST);
+                //     // Cache this for future reuse.
+                //     if (cache_ && !transition.isCached()) {
+                //         // cout << "Caching it for future! " << endl;
+                //         vector<ProductState> path_to_cache_reversed = construct_path(parent_map, next_state, true, curr_dfa_state);
+                //         // Now we create a transition and add it to a product graph.
+                //         // Serves as a "skip-connection".
+                //         product_manager_->cache_path(path_to_cache_reversed, transition.dfa_edge_condition());
+                //     }
+                // }
                 continue;
             }
 

@@ -5,12 +5,12 @@
 
 using namespace std;
 
-DFAManager::DFAManager(shared_ptr<spot::bdd_dict> bddDict, set<bdd, BddComparator> equivalence_regions, bool feedback)
+DFAManager::DFAManager(shared_ptr<spot::bdd_dict> bddDict, set<bdd, BddComparator> equivalence_regions, bool feedback, bool hamming_dist)
     : bdd_dict_(bddDict), equivalence_regions_(equivalence_regions),
-    feedback_(feedback), use_pred_mapping_(false) {}
+    feedback_(feedback), hamming_dist_(hamming_dist), use_pred_mapping_(false) {}
 
-DFAManager::DFAManager(shared_ptr<spot::bdd_dict> bddDict, bool feedback)
-    : bdd_dict_(bddDict), feedback_(feedback), use_pred_mapping_(true) {}
+DFAManager::DFAManager(shared_ptr<spot::bdd_dict> bddDict, bool feedback, bool hamming_dist)
+    : bdd_dict_(bddDict), feedback_(feedback), hamming_dist_(hamming_dist),use_pred_mapping_(true) {}
 
 void DFAManager::construct_dfa(const LTLFormula& formula) {
     spot::formula spot_formula = formula.get_spot_formula();
@@ -167,11 +167,16 @@ shared_ptr<DFANode> DFAManager::generate_dfa_path() {
         }
         for (auto& edge: get_transitions(current_dfa_state)) {
             size_t next_dfa_state = edge.dst;
-            // TODO: PDDL doesn't support is_transition_feasible() yet
+            // TODO: PDDL doesn't support is_transition_feasible() yet.
             if (next_dfa_state != current_dfa_state && is_transition_feasible(edge.cond)) {
-
+                int edge_cost;
                 // Calculate the cost for this transition
-                int edge_cost = dfa_transition_cost(current_dfa_state, next_dfa_state);
+                if (hamming_dist_) {
+                    edge_cost = dfa_transition_cost(current_dfa_state, next_dfa_state, currentNode->getSelfEdgeCondition(), edge.cond);
+                } else {
+                    edge_cost = dfa_transition_cost(current_dfa_state, next_dfa_state);
+                }
+            
                 int total_cost = currentNodePair.first + edge_cost;
 
                 auto childNode = make_shared<DFANode>(next_dfa_state, currentNode, edge_cost, edge.cond);
@@ -193,8 +198,26 @@ int DFAManager::dfa_transition_cost(size_t from_state, size_t to_state) {
         // Return the stored cost if available
         return it->second;
     } else {
+        // TODO: implement a cost based on the number of differing props.
         // Default cost if the transition has not been attempted yet
         return DEFAULT_COST; // = 1
+    }
+}
+
+// Define the transition_cost function based on past experiences.
+int DFAManager::dfa_transition_cost(size_t from_state, size_t to_state, const bdd& curr_state, const bdd& trans_edge_cond) {
+    if (!feedback_) return DEFAULT_COST;
+    auto it = dfa_transition_costs_.find(make_pair(from_state, to_state));
+    if (it != dfa_transition_costs_.end()) {
+        // Return the stored cost if available
+        return it->second;
+    } else {
+        // Calculate the XOR of curr_state and trans_edge_cond
+        bdd difference = curr_state ^ trans_edge_cond;
+
+        // Count the number of differing propositions - this method will depend on your BDD library
+        // int num_differing_props = count_true_propositions(difference); // = 1
+        return DEFAULT_COST; 
     }
 }
 
@@ -218,6 +241,17 @@ void DFAManager::update_dfa_transition_cost(shared_ptr<DFANode>& node, int cost)
     node->updateParentEdgeCost(cost, node_handles_, nodePriorityQueue_);
 
     // print_node_priority_queue();
+}
+
+void DFAManager::update_dfa_transition_cost(size_t dfaStateOut, size_t dfaStateIn, int cost) {
+
+    if (!feedback_) {
+        // We don't want to provide feedback when this flag is set to false.
+        return;
+    }
+
+    // Update the cost in the cost table.
+    dfa_transition_costs_[make_pair(dfaStateOut, dfaStateIn)] = cost;
 }
 
 // Initialize all paths from the root = the start dfa state.
