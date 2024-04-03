@@ -22,7 +22,7 @@ using NodeHeap = boost::heap::fibonacci_heap<
 
 class DFANode : public std::enable_shared_from_this<DFANode>{
 public:
-    DFANode(size_t state, std::shared_ptr<DFANode> parent=nullptr, int parent_edge_cost=DEFAULT_COST, bdd parentEdgeCondition=bdd_true(), bdd selfEdgeCondition=bdd_true());
+    DFANode(size_t state, bdd selfEdgeCondition=bdd_false(), std::shared_ptr<DFANode> parent=nullptr, bdd parentEdgeCondition=bdd_true(), int parent_edge_cost=DEFAULT_COST);
 
     // Getters
     size_t getState() const;

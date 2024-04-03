@@ -84,6 +84,8 @@ private:
 
     // Use for PDDL problems.
     bool use_pred_mapping_;
+
+    int count_differing_aps(const bdd& bdd1, const bdd& bdd2);
 };
 
 #endif // DFAUTILITY_H

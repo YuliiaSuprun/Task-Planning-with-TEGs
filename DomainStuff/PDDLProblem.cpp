@@ -8,9 +8,15 @@ PDDLProblem::PDDLProblem(const string& problemFile, shared_ptr<PDDLDomain> domai
 feedback_(feedback), use_landmarks_(use_landmarks),
 hamming_dist_(hamming_dist), bdd_dict_(make_shared<spot::bdd_dict>()) {
 
+    if (hamming_dist_) {
+        cout << "HAmming is true!!" << endl;
+    } else {
+        cout << "HAmming is false!!" << endl;
+    }
+
     parseProblem(problemFile, domainPtr);
     cout << "Problem was parsed!!!" << endl;
-    pddlProblem_->toPDDL(std::cout) << std::endl;
+    // pddlProblem_->toPDDL(std::cout) << std::endl;
 
     // Set a start position.
     start_domain_state_ = make_shared<PDDLState>(pddlProblem_->start);
@@ -18,6 +24,11 @@ hamming_dist_(hamming_dist), bdd_dict_(make_shared<spot::bdd_dict>()) {
     map<string, pair<string, vector<string>>> pred_mapping;
     // Set a mapping from propositions to grounded predicates.
     pddlProblem_->goal->getAtomicPropsMap(pred_mapping);
+    // for (const auto& p: pred_mapping) {
+    //     cout << "Pred is " << p.first << endl;
+    // }
+    // cout << "pred_mapping size is " << pred_mapping.size() << endl;
+
 
     // Initialize a dfa manager.
     dfa_manager_ = make_shared<DFAManager>(bdd_dict_, feedback_, hamming_dist_);

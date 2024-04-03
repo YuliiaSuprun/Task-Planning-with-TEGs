@@ -44,7 +44,7 @@ int main(int argc, char** argv) {
     bool use_landmarks = false;
     bool hamming_dist = false;
 
-    for (int i = 4; i < argc; ++i) {
+    for (int i = 3; i < argc; ++i) {
         string arg = argv[i];
         if (arg == "-c") {
             cache = true;
