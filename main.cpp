@@ -33,19 +33,39 @@ using namespace std;
 
 int main(int argc, char** argv) {
     if (argc < 3) {
-        cerr << "Usage: " << argv[0] << " <PDDL Domain File> <PDDL Problem File>" << endl;
+        cerr << "Usage: " << argv[0] << " <PDDL Domain File> <PDDL Problem File> [-c] [-f] [-l] [-h]" << endl;
         exit(EXIT_FAILURE);
     }
 
     string domainFilePath = argv[1];
     string problemFilePath = argv[2];
+    bool cache = false;
+    bool feedback = false;
+    bool use_landmarks = false;
+    bool hamming_dist = false;
+
+    for (int i = 3; i < argc; ++i) {
+        string arg = argv[i];
+        if (arg == "-c") {
+            cache = true;
+        } else if (arg == "-f") {
+            feedback = true;
+        } else if (arg == "-l") {
+            use_landmarks = true;
+        } else if (arg == "-h") {
+            hamming_dist = true;
+        } else {
+            cerr << "Unknown argument: " << arg << endl;
+            exit(EXIT_FAILURE);
+        }
+    }
 
     // Instantiate PDDLDomain and PDDLProblem.
     shared_ptr<PDDLDomain> pddlDomain;
     shared_ptr<PDDLProblem> pddlProblem;
     try {
         pddlDomain = make_shared<PDDLDomain>(domainFilePath);
-        pddlProblem = make_shared<PDDLProblem>(problemFilePath, pddlDomain);
+        pddlProblem = make_shared<PDDLProblem>(problemFilePath, pddlDomain, cache, feedback, use_landmarks, hamming_dist);
     } catch (const std::exception& e) {
         cerr << "Error: " << e.what() << endl;
         exit(EXIT_FAILURE);
@@ -66,7 +86,7 @@ int main(int argc, char** argv) {
 
     if (!solution_path.empty()) {
         cout << "Solution for problem is:" << endl;
-        pddlProblem->print_product_path();
+        // pddlProblem->print_product_path();
         pddlProblem->print_domain_path();
         pddlProblem->print_dfa_path();
     } else {

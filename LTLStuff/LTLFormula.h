@@ -5,6 +5,7 @@
 #include <map>
 #include <set>
 #include <iostream>
+#include <algorithm>
 
 #include <spot/tl/formula.hh>
 #include <spot/tl/parse.hh>
@@ -37,14 +38,37 @@ in order to mark it as accepting.)
 class LTLFormula {
 public:
     LTLFormula(const string& formula, 
-               const map<string, DomainStateSet>&ap_mapping={})
-        : formula_(formula), ap_mapping_(ap_mapping) {}
+               const map<string, DomainStateSet>&ap_to_states_mapping)
+        : formula_(formula), ap_to_states_mapping_(ap_to_states_mapping), use_pred_mapping_(false) {}
+    
+    LTLFormula(const string& formula, 
+               const map<string, pair<string, vector<string>>>& pred_mapping)
+        : use_pred_mapping_(true) {
+            // Check if the character '-' is in the formula 
+            // (SPOT doesn't like it for some reason)
+            formula_ = remove_dashes(formula);
+            for (const auto& prop_pair : pred_mapping) {
+                pred_mapping_.insert({remove_dashes(prop_pair.first), prop_pair.second});
+            }
+        }
     
     // Default constructor
-    LTLFormula() : formula_(""), ap_mapping_() {}
+    LTLFormula() : formula_(""), ap_to_states_mapping_(), use_pred_mapping_(false) {}
 
     string get_formula() const { return formula_; }
-    map<string, DomainStateSet> get_ap_mapping() const { return ap_mapping_; }
+    map<string, DomainStateSet> get_ap_to_states_mapping() const {
+        if (use_pred_mapping_) {
+            cerr << "ERROR: the pred_mapping has to be used." << endl;
+        }
+        return ap_to_states_mapping_; 
+    }
+
+    map<string, pair<string, vector<string>>> get_pred_mapping() const {
+        if (!use_pred_mapping_) {
+            cerr << "ERROR: the ap_to_states_mapping has to be used." << endl;
+        }
+        return pred_mapping_; 
+    }
 
     // Function to return Spot's formula
     spot::formula get_spot_formula() const {
@@ -62,7 +86,14 @@ public:
 
 private:
     string formula_;
-    map<string, DomainStateSet> ap_mapping_;
+    map<string, DomainStateSet> ap_to_states_mapping_;
+    map<string, pair<string, vector<string>>> pred_mapping_;
+    bool use_pred_mapping_;
+
+    string remove_dashes(string str) {
+        std::replace(str.begin(), str.end(), '-', '_');
+        return str;
+    }
 };
 
 // Definition of the overloaded << operator for LTLFormula

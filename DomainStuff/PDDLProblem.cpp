@@ -3,27 +3,35 @@
 #include <pddlboat/parser/translator.hpp>
 #include <iostream>
 
-PDDLProblem::PDDLProblem(const string& problemFile, shared_ptr<PDDLDomain> domainPtr, bool cache, bool feedback, bool use_landmarks, int problem_id) 
+PDDLProblem::PDDLProblem(const string& problemFile, shared_ptr<PDDLDomain> domainPtr, bool cache, bool feedback, bool use_landmarks, bool hamming_dist, int problem_id) 
 : domain_(domainPtr), problem_id_(problem_id), cache_(cache),
-    use_landmarks_(use_landmarks),
-    bdd_dict_(make_shared<spot::bdd_dict>()) {
+feedback_(feedback), use_landmarks_(use_landmarks),
+hamming_dist_(hamming_dist), bdd_dict_(make_shared<spot::bdd_dict>()) {
+
+    if (hamming_dist_) {
+        cout << "HAmming is true!!" << endl;
+    } else {
+        cout << "HAmming is false!!" << endl;
+    }
 
     parseProblem(problemFile, domainPtr);
     cout << "Problem was parsed!!!" << endl;
-    pddlProblem_->toPDDL(std::cout) << std::endl;
+    // pddlProblem_->toPDDL(std::cout) << std::endl;
 
     // Set a start position.
     start_domain_state_ = make_shared<PDDLState>(pddlProblem_->start);
 
+    map<string, pair<string, vector<string>>> pred_mapping;
     // Set a mapping from propositions to grounded predicates.
-    pddlProblem_->goal->getAtomicPropsMap(pred_mapping_);
+    pddlProblem_->goal->getAtomicPropsMap(pred_mapping);
+    // for (const auto& p: pred_mapping) {
+    //     cout << "Pred is " << p.first << endl;
+    // }
+    // cout << "pred_mapping size is " << pred_mapping.size() << endl;
 
-    // Initialize all managers.
-    domain_manager_ = make_shared<DomainManager>(bdd_dict_, domain_, pred_mapping_);
 
-    dfa_manager_ = make_shared<DFAManager>(bdd_dict_, feedback);
-
-    product_manager_ = make_shared<ProductManager>(domain_manager_, dfa_manager_);
+    // Initialize a dfa manager.
+    dfa_manager_ = make_shared<DFAManager>(bdd_dict_, feedback_, hamming_dist_);
 
     std::cout << "Creating dfa for problem_id=" << problem_id_ << endl;
     // Get a name for output files.
@@ -34,7 +42,7 @@ PDDLProblem::PDDLProblem(const string& problemFile, shared_ptr<PDDLDomain> domai
     auto start1 = chrono::high_resolution_clock::now();
 
     // Convert to formula_str to LTLFormula object.
-    formula_ = LTLFormula(pddlProblem_->goal->toLTL());
+    formula_ = LTLFormula(pddlProblem_->goal->toLTL(), pred_mapping);
 
     // Compute the DFA corresponding to the given LTL formula.
     dfa_manager_->construct_dfa(formula_);
@@ -45,6 +53,11 @@ PDDLProblem::PDDLProblem(const string& problemFile, shared_ptr<PDDLDomain> domai
 
     // dfa_manager_->print_dfa();
     dfa_manager_->save_dfa(filename_);
+
+    // Initialize domain and product managers.
+    domain_manager_ = make_shared<DomainManager>(bdd_dict_, domain_, get_pred_mapping());
+
+    product_manager_ = make_shared<ProductManager>(domain_manager_, dfa_manager_);
 }
 
 PDDLProblem::~PDDLProblem() {
@@ -193,6 +206,21 @@ void PDDLProblem::realize_dfa_trace(shared_ptr<DFANode>& endTraceNode) {
             next_dfa_state != dfa_trace.at(currentRegionIndex + 1)) {
                 // cout << "SKIP: an illegal DFA transition: " << curr_dfa_state << "=>" << next_dfa_state << endl;
                 // Skip states that lead to any other dfa states.
+                // Update cost for this transition to 0.
+                if (feedback_) {
+                    dfa_manager_->update_dfa_transition_cost(curr_dfa_state, next_dfa_state, SUCCESS_COST);
+                }
+                // if (feedback_ && dfa_manager_->dfa_transition_cost(curr_dfa_state, next_dfa_state) != SUCCESS_COST) {
+                //     dfa_manager_->update_dfa_transition_cost(curr_dfa_state, next_dfa_state, SUCCESS_COST);
+                //     // Cache this for future reuse.
+                //     if (cache_ && !transition.isCached()) {
+                //         // cout << "Caching it for future! " << endl;
+                //         vector<ProductState> path_to_cache_reversed = construct_path(parent_map, next_state, true, curr_dfa_state);
+                //         // Now we create a transition and add it to a product graph.
+                //         // Serves as a "skip-connection".
+                //         product_manager_->cache_path(path_to_cache_reversed, transition.dfa_edge_condition());
+                //     }
+                // }
                 continue;
             }
 
@@ -352,5 +380,5 @@ string PDDLProblem::get_filename() const {
 }
 
 map<string, pair<string, vector<string>>> PDDLProblem::get_pred_mapping() const {
-    return pred_mapping_;
+    return formula_.get_pred_mapping();
 }

@@ -392,7 +392,7 @@ void TEGProblem::print_dfa_path() const {
 }
 
 map<string, DomainStateSet> TEGProblem::get_ap_to_states_mapping() const {
-    return formula_.get_ap_mapping();
+    return formula_.get_ap_to_states_mapping();
 }
 
 string TEGProblem::get_filename() const {

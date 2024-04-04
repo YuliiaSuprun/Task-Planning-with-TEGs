@@ -34,13 +34,14 @@ void ProductManager::compute_full_product() {
 
 void ProductManager::generate_successors(const ProductState& prod_state) {
     size_t dfa_state = prod_state.get_dfa_state();
-    // cout << "Generating successors for dfa state " << dfa_state << endl;
     shared_ptr<DomainState> domain_state = prod_state.get_domain_state();
-    // cout << "and domain state " << *domain_state << endl;
+
+    // Initialize the vector for the current product state.
+    // This ensures that an empty vector is assigned even if no successors are found.
+    product_transitions_[prod_state] = vector<ProductTransition>();
 
     // Add transitions based on "primitive" actions in the domain.
     for (const auto& state_action_pair : domain_manager_->get_successor_state_action_pairs(*domain_state)) {
-        // cout << "state_action_pair! " << *state_action_pair.first << endl;
         shared_ptr<DomainState> next_domain_state = state_action_pair.first;
         shared_ptr<PrimitiveAction> domain_action = state_action_pair.second;
 
