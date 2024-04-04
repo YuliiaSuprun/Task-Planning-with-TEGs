@@ -5,12 +5,12 @@
 
 using namespace std;
 
-DFAManager::DFAManager(shared_ptr<spot::bdd_dict> bddDict, set<bdd, BddComparator> equivalence_regions, bool feedback, bool hamming_dist)
+DFAManager::DFAManager(shared_ptr<spot::bdd_dict> bddDict, set<bdd, BddComparator> equivalence_regions, bool feedback)
     : bdd_dict_(bddDict), equivalence_regions_(equivalence_regions),
-    feedback_(feedback), hamming_dist_(hamming_dist), use_pred_mapping_(false) {}
+    feedback_(feedback), use_pred_mapping_(false) {}
 
-DFAManager::DFAManager(shared_ptr<spot::bdd_dict> bddDict, bool feedback, bool hamming_dist)
-    : bdd_dict_(bddDict), feedback_(feedback), hamming_dist_(hamming_dist),use_pred_mapping_(true) {}
+DFAManager::DFAManager(shared_ptr<spot::bdd_dict> bddDict, bool feedback)
+    : bdd_dict_(bddDict), feedback_(feedback), use_pred_mapping_(true) {}
 
 void DFAManager::construct_dfa(const LTLFormula& formula) {
     spot::formula spot_formula = formula.get_spot_formula();
@@ -139,7 +139,7 @@ bdd DFAManager::get_self_edge_cond(size_t dfa_state) const{
      for (auto& edge: dfa_->out(dfa_state)) {
         // Check if this is a self-edge.
         if (edge.dst == dfa_state) { 
-            // std::cout << "Self-transition was found!" << endl;
+            std::cout << "Self-transition was found!" << endl;
             return edge.cond;
         }
     }
@@ -167,19 +167,14 @@ shared_ptr<DFANode> DFAManager::generate_dfa_path() {
         }
         for (auto& edge: get_transitions(current_dfa_state)) {
             size_t next_dfa_state = edge.dst;
-            // TODO: PDDL doesn't support is_transition_feasible() yet.
+            // TODO: PDDL doesn't support is_transition_feasible() yet
             if (next_dfa_state != current_dfa_state && is_transition_feasible(edge.cond)) {
-                int edge_cost;
+
                 // Calculate the cost for this transition
-                if (hamming_dist_) {
-                    edge_cost = dfa_transition_cost(current_dfa_state, next_dfa_state, currentNode->getSelfEdgeCondition(), edge.cond);
-                } else {
-                    edge_cost = dfa_transition_cost(current_dfa_state, next_dfa_state);
-                }
-            
+                int edge_cost = dfa_transition_cost(current_dfa_state, next_dfa_state);
                 int total_cost = currentNodePair.first + edge_cost;
 
-                auto childNode = make_shared<DFANode>(next_dfa_state, get_self_edge_cond(next_dfa_state), currentNode, edge.cond, edge_cost);
+                auto childNode = make_shared<DFANode>(next_dfa_state, currentNode, edge_cost, edge.cond);
                 currentNode->addChild(childNode);
 
                 auto handle = nodePriorityQueue_.push(make_pair(total_cost, childNode));
@@ -200,18 +195,6 @@ int DFAManager::dfa_transition_cost(size_t from_state, size_t to_state) {
     } else {
         // Default cost if the transition has not been attempted yet
         return DEFAULT_COST; // = 1
-    }
-}
-
-// Define the transition_cost function based on past experiences.
-int DFAManager::dfa_transition_cost(size_t from_state, size_t to_state, const bdd& self_edge_cond, const bdd& trans_edge_cond) {
-    if (!feedback_) return count_differing_aps(self_edge_cond, trans_edge_cond);
-    auto it = dfa_transition_costs_.find(make_pair(from_state, to_state));
-    if (it != dfa_transition_costs_.end()) {
-        // Return the stored cost if available
-        return it->second;
-    } else {
-        return count_differing_aps(self_edge_cond, trans_edge_cond);
     }
 }
 
@@ -237,21 +220,9 @@ void DFAManager::update_dfa_transition_cost(shared_ptr<DFANode>& node, int cost)
     // print_node_priority_queue();
 }
 
-void DFAManager::update_dfa_transition_cost(size_t dfaStateOut, size_t dfaStateIn, int cost) {
-
-    if (!feedback_) {
-        // We don't want to provide feedback when this flag is set to false.
-        return;
-    }
-
-    // Update the cost in the cost table.
-    dfa_transition_costs_[make_pair(dfaStateOut, dfaStateIn)] = cost;
-}
-
 // Initialize all paths from the root = the start dfa state.
 void DFAManager::initialize_node_priority_queue() {
-    int start_state = get_start_state();
-    auto root = make_shared<DFANode>(start_state, get_self_edge_cond(start_state));
+    auto root = make_shared<DFANode>(get_start_state());
     auto handle = nodePriorityQueue_.push(make_pair(0, root));
     node_handles_[root] = handle;
 }
@@ -292,7 +263,6 @@ bool DFAManager::is_transition_feasible(const bdd& edge_cond) {
     if (use_pred_mapping_) {
         // Equivalence regions are not used.
         // TODO: come up with something else.
-
         return true;
     }
     for (const auto& region_bdd : equivalence_regions_) {
@@ -315,33 +285,4 @@ spot::twa_graph::edge_storage_t* DFAManager::find_transition(const bdd& next_sta
     }
     // If no valid transition is found
     return nullptr;
-}
-
-int DFAManager::count_differing_aps(const bdd& bdd1, const bdd& bdd2) {
-    // cout << " in count_differing_aps" << endl;
-    // cout << "bdd1: " << bdd1 << endl;
-    // cout << "bdd2: " << bdd2 << endl;
-    int count = 0;
-
-    for (size_t i = 0; i < bdd_dict_->var_map.size(); ++i) {
-        bdd p = bdd_ithvar(i);  // Represents the atomic proposition 'p'
-        bdd np = bdd_nithvar(i); // Represents the negation of 'p'
-
-        // Check if including the proposition (or its negation) makes a difference in the XOR result
-        if ((bdd_restrict(bdd1, p) == bddfalse) & (bdd_restrict(bdd2, p) != bddfalse)) {
-            // cout << "Case 1" << endl;
-            ++count;
-        } else if ((bdd_restrict(bdd1, np) == bddfalse) & (bdd_restrict(bdd2, np) != bddfalse)) {
-            // cout << "Case 2" << endl;
-            ++count;
-        } else if ((bdd_restrict(bdd1, p) != bddfalse) & (bdd_restrict(bdd2, p) == bddfalse)) {
-            // cout << "Case 3" << endl;
-            ++count;
-        } else if ((bdd_restrict(bdd1, np) != bddfalse) & (bdd_restrict(bdd2, np) == bddfalse)) {
-            // cout << "Case 4" << endl;
-            ++count;
-        }
-    }
-    // cout << "count is " << count << endl;
-    return 2*count-1;
 }

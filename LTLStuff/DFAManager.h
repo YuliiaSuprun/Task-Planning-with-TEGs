@@ -24,9 +24,9 @@
 class DFAManager {
 public:
     // Constructor
-    DFAManager(shared_ptr<spot::bdd_dict> bddDict, set<bdd, BddComparator> equivalence_regions, bool feedback, bool hamming_dist=false);
+    DFAManager(shared_ptr<spot::bdd_dict> bddDict, set<bdd, BddComparator> equivalence_regions, bool feedback);
 
-    DFAManager(shared_ptr<spot::bdd_dict> bddDict, bool feedback, bool hamming_dist=false);
+    DFAManager(shared_ptr<spot::bdd_dict> bddDict, bool feedback);
 
     // Convert LTL formula to DFA
     void construct_dfa(const LTLFormula& formula);
@@ -46,11 +46,7 @@ public:
     shared_ptr<DFANode> generate_dfa_path();
 
     int dfa_transition_cost(size_t from_state, size_t to_state);
-    int dfa_transition_cost(size_t from_state, size_t to_state,
-    const bdd& self_edge_cond, const bdd& trans_edge_cond);
-
     void update_dfa_transition_cost(shared_ptr<DFANode>& node, int cost);
-    void update_dfa_transition_cost(size_t dfaStateOut, size_t dfaStateIn, int cost);
 
     void print_dfa_path(vector<size_t> dfa_path) const;
     void print_node_priority_queue();
@@ -67,7 +63,6 @@ private:
     spot::bdd_dict_ptr bdd_dict_;
     set<bdd, BddComparator> equivalence_regions_;
     bool feedback_;
-    bool hamming_dist_;
 
     // DFA corresponding to LTL formula.
     shared_ptr<spot::twa_graph> dfa_;
@@ -84,8 +79,6 @@ private:
 
     // Use for PDDL problems.
     bool use_pred_mapping_;
-
-    int count_differing_aps(const bdd& bdd1, const bdd& bdd2);
 };
 
 #endif // DFAUTILITY_H

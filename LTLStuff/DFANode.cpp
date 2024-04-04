@@ -1,6 +1,6 @@
 #include "DFANode.h"
 
-DFANode::DFANode(size_t state, bdd selfEdgeCondition, std::shared_ptr<DFANode> parent, bdd parentEdgeCondition, int parent_edge_cost)
+DFANode::DFANode(size_t state, std::shared_ptr<DFANode> parent, int parent_edge_cost, bdd parentEdgeCondition, bdd selfEdgeCondition)
     : dfa_state_(state), parent_(parent),
     parent_edge_cost_(parent_edge_cost),
     parent_edge_condition_(parentEdgeCondition),
