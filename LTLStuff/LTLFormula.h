@@ -75,7 +75,7 @@ public:
         spot::parsed_formula pf = spot::parse_infix_psl(formula_);
         // Here, we could also handle any parsing errors.
         (void) pf.format_errors(cerr);
-        cout << "spot formula: " << pf.f << endl;
+        // cout << "spot formula: " << pf.f << endl;
         return pf.f;
     }
 

@@ -5,6 +5,7 @@
 #include <queue>
 #include <map>
 #include <memory>
+#include <cmath>
 #include <bddx.h>
 
 #include <boost/heap/fibonacci_heap.hpp>
@@ -15,8 +16,8 @@
 class DFANode;
 
 using NodeHeap = boost::heap::fibonacci_heap<
-    std::pair<int, std::shared_ptr<DFANode>>,
-    boost::heap::compare<std::greater<std::pair<int, std::shared_ptr<DFANode>>>>
+    std::pair<double, std::shared_ptr<DFANode>>,
+    boost::heap::compare<std::greater<std::pair<double, std::shared_ptr<DFANode>>>>
 >;
 
 
@@ -31,6 +32,8 @@ public:
 
     int getParentEdgeCost() const;
     int getPathCost() const;
+    int getPathLength() const;
+    double getPathDensity() const;
 
     bool updateParentEdgeCost(int new_parent_edge_cost, const std::map<std::shared_ptr<DFANode>, NodeHeap::handle_type>& node_handles, NodeHeap& node_priority_queue);
     
@@ -55,6 +58,7 @@ private:
 
     int parent_edge_cost_;
     int path_from_root_cost_;
+    int path_length_;
 
     bdd parent_edge_condition_;
     bdd self_edge_condition_;

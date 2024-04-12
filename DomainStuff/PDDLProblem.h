@@ -35,6 +35,9 @@ public:
     vector<size_t> get_dfa_path() const;
 
     string get_filename() const;
+    double get_dfa_construction_time() const;
+    size_t get_num_expanded_nodes() const;
+    size_t get_num_generated_nodes() const;
     map<string, pair<string, vector<string>>> get_pred_mapping() const;
 
     void print_product_path() const;
@@ -71,6 +74,9 @@ private:
     vector<size_t> dfa_path_;
 
     string filename_;
+    string problem_name_;
+    chrono::duration<double> dfa_construction_time_;
+    size_t num_expanded_nodes_;
 };
 
 #endif // PDDL_PROBLEM_H

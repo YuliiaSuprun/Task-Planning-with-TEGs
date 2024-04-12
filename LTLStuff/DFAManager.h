@@ -62,6 +62,10 @@ public:
     bool is_transition_valid(const bdd& edge_cond, const bdd& next_state_bdd);
     spot::twa_graph::edge_storage_t* find_transition(const bdd& next_state_bdd, size_t curr_dfa_state);
 
+    void give_up_on_path(shared_ptr<DFANode>& endPathNode, shared_ptr<DFANode>& failureNode);
+
+    void add_node_to_queue(shared_ptr<DFANode>& node);
+
 private:
 
     spot::bdd_dict_ptr bdd_dict_;

@@ -25,26 +25,26 @@
 
 using namespace std;
 
-// ./run.sh /Users/yuliiasuprun/Desktop/Classes/AlgoRobotics/Research/Code/pddlboat/resources/blocks/blockworld.pddl /Users/yuliiasuprun/Desktop/Classes/AlgoRobotics/Research/Code/pddlboat/resources/blocks/p00.pddl
-
-// Temporal
-// ./run.sh /Users/yuliiasuprun/Desktop/Classes/AlgoRobotics/Research/Code/Plan4Past-data/deterministic/LTLf/TB15/blocksworld/domain.pddl /Users/yuliiasuprun/Desktop/Classes/AlgoRobotics/Research/Code/Plan4Past-data/deterministic/LTLf/TB15/blocksworld/c03.pddl
+// Example of the command
+// ./run.sh /Users/yuliiasuprun/Desktop/Classes/AlgoRobotics/Research/Code/Plan4Past-data/deterministic/LTLf/TB15/blocksworld/domain.pddl /Users/yuliiasuprun/Desktop/Classes/AlgoRobotics/Research/Code/Plan4Past-data/deterministic/LTLf/TB15/blocksworld/e03.pddl -f -c -h
 
 
 int main(int argc, char** argv) {
-    if (argc < 3) {
-        cerr << "Usage: " << argv[0] << " <PDDL Domain File> <PDDL Problem File> [-c] [-f] [-l] [-h]" << endl;
+    if (argc < 4) { 
+        cerr << "Usage: " << argv[0] << " <PDDL Domain File> <PDDL Problem File> <Number of Runs> [-c] [-f] [-l] [-h]" << endl;
         exit(EXIT_FAILURE);
     }
 
     string domainFilePath = argv[1];
     string problemFilePath = argv[2];
+    int numRuns = stoi(argv[3]);
+
     bool cache = false;
     bool feedback = false;
     bool use_landmarks = false;
     bool hamming_dist = false;
 
-    for (int i = 3; i < argc; ++i) {
+    for (int i = 4; i < argc; ++i) {
         string arg = argv[i];
         if (arg == "-c") {
             cache = true;
@@ -60,104 +60,74 @@ int main(int argc, char** argv) {
         }
     }
 
-    // Instantiate PDDLDomain and PDDLProblem.
-    shared_ptr<PDDLDomain> pddlDomain;
-    shared_ptr<PDDLProblem> pddlProblem;
-    try {
-        pddlDomain = make_shared<PDDLDomain>(domainFilePath);
-        pddlProblem = make_shared<PDDLProblem>(problemFilePath, pddlDomain, cache, feedback, use_landmarks, hamming_dist);
-    } catch (const std::exception& e) {
-        cerr << "Error: " << e.what() << endl;
-        exit(EXIT_FAILURE);
+    // Variables to store total elapsed time and for averaging
+    double totalDFATime = 0;
+    double firstRunDFATime = 0;
+    double DFATimeWithoutFirst = 0;
+    double totalSearchTime = 0;
+
+    size_t totalExpandedNodes = 0;
+    size_t totalPlanLength = 0;
+
+    for (int run = 0; run < numRuns; ++run) {
+        // Instantiate PDDLDomain and PDDLProblem.
+        shared_ptr<PDDLDomain> pddlDomain;
+        shared_ptr<PDDLProblem> pddlProblem;
+        try {
+            pddlDomain = make_shared<PDDLDomain>(domainFilePath);
+            pddlProblem = make_shared<PDDLProblem>(problemFilePath, pddlDomain, cache, feedback, use_landmarks, hamming_dist);
+        } catch (const std::exception& e) {
+            cerr << "Error: " << e.what() << endl;
+            exit(EXIT_FAILURE);
+        }
+
+        auto pddlboatProblem = pddlProblem->getPddlboatProblemPtr();
+        // Do not forget to set a problem!!
+        pddlDomain->setProblem(pddlboatProblem);
+
+        double dfa_time = pddlProblem->get_dfa_construction_time();
+        if (run == 0) {
+            firstRunDFATime = dfa_time;
+        } else {
+            DFATimeWithoutFirst += dfa_time;
+        }
+        totalDFATime += dfa_time;
+
+        auto start = chrono::high_resolution_clock::now();
+
+        // Solve the problem and get the solution path
+        vector<ProductState> solution_path = pddlProblem->solve();
+
+        auto end = chrono::high_resolution_clock::now();
+        chrono::duration<double> elapsed = end - start;
+
+        totalSearchTime += elapsed.count();
+        totalExpandedNodes += pddlProblem->get_num_expanded_nodes();
+        
+        cout << "Run " << (run + 1) << " DFA Time: " << dfa_time << " Search Time: " << elapsed.count() << " seconds" << endl;
+
+        if (!solution_path.empty()) {
+            cout << "Solution for problem is:" << endl;
+            // pddlProblem->print_product_path();
+            // pddlProblem->print_domain_path();
+            pddlProblem->print_dfa_path();
+            totalPlanLength += pddlProblem->get_domain_path().size();
+        } else {
+            cout << "No solution found for problem" << endl;
+        }
     }
+    double averageDFATime = totalDFATime / numRuns;
+    double averageSearchTime = totalSearchTime / numRuns;
+    double averageDFATimeNoFirst = (numRuns > 1) ? (DFATimeWithoutFirst / (numRuns-1)) : 0;
+    double averageExpandedNodes = static_cast<double>(totalExpandedNodes) / numRuns;
+    double averagePlanLength = static_cast<double>(totalPlanLength) / numRuns;
+    cout << "For " << numRuns << " runs: " << endl;
+    cout << "Average DFA construction time: " << averageDFATime << " seconds" << endl;
+    cout << "First DFA construction time: " << firstRunDFATime << " seconds" << endl;
+    cout << "Average DFA construction time (without first): " << averageDFATimeNoFirst << " seconds" << endl;
+    cout << "Average search time: " << averageSearchTime << " seconds" << endl;
+    cout << "Average number of expanded nodes: " << averageExpandedNodes << endl;
+    cout << "Average plan length: " << averagePlanLength << endl;
 
-    auto pddlboatProblem = pddlProblem->getPddlboatProblemPtr();
-    // Do not forget to set a problem!!
-    pddlDomain->setProblem(pddlboatProblem);
-
-    auto start = chrono::high_resolution_clock::now();
-
-    // Solve the problem and get the solution path
-    vector<ProductState> solution_path = pddlProblem->solve();
-
-    auto end = chrono::high_resolution_clock::now();
-    chrono::duration<double> elapsed = end - start;
-    std::cout << "Time of searching for a solution: " << elapsed.count() << " seconds" << std::endl;
-
-    if (!solution_path.empty()) {
-        cout << "Solution for problem is:" << endl;
-        // pddlProblem->print_product_path();
-        pddlProblem->print_domain_path();
-        pddlProblem->print_dfa_path();
-    } else {
-        cout << "No solution found for problem" << endl;
-    }
-
-    // // Step 1: Convert problem goal into LTLf formula as a string.
-    // pddlboat::ExpressionPtr goalExpression = pddlboatProblem->goal;
-    // cout << "The goal is defined as follows: " << endl;
-    // goalExpression->toPDDL(std::cout) << std::endl;
-
-    // auto ltlStr = goalExpression->toLTL();
-    // cout << "The goal in the LTL format: " << ltlStr << endl;
-
-    // pddlboat::VariableSet vars;
-    // goalExpression->getVariables(vars);
-    // cout << "Printing variables: ";
-    // for (const auto& var : vars.getNames()) {
-    //     cout << var << ", ";
-    // }
-    // cout << endl;
-
-    // auto startState = pddlboatProblem->start; 
-    // pddlboat::Assignment ass;
-
-
-    // set<string> predicates;
-    // cout << "Printing the used predicates: ";
-    // goalExpression->getUsedPredicates(predicates, startState, ass);
-    // for (const auto& pred : predicates) {
-    //     cout << pred << ", ";
-    // }
-    // cout << endl;
-
-    // cout << endl << "Printing the predicate mapping: ";
-
-    // // The value contains the name of the predicate and its grounding (a vector of objects).
-    // map<string, pair<string, vector<string>>> pred_mapping;
-
-    // goalExpression->getAtomicPropsMap(pred_mapping);
-    // for (const auto& pred_pair : pred_mapping) {
-    //     cout << pred_pair.first << ": predicate is " << pred_pair.second.first << " with grounding: ";
-    //     for (const auto& value : pred_pair.second.second) {
-    //         cout << value << "; ";
-    //     }
-    //     cout << "=====" << endl;
-    // }
-    
-    // std::vector<pddlboat::State::Key> allTruePreds = startState->getTruePredicates();
-    // for (const auto& key : allTruePreds) {
-    //     cout << "Predicate is " << key.first << " with assignment: " << endl;
-    //     for (const auto& value : key.second) {
-    //         cout << value << "; ";
-    //     }
-    //     cout << "=====" << endl;
-    // }
-
-    // Solve the problem
-    // pddlboat::Z3Planner::Options options;
-    // // options.dump_clauses = true;
-    // // options.horizon.max = 4;
-    // // auto task_planner = make_shared<pddlboat::Z3Planner>(pddlboatProblem, options);
-    // auto task_planner = make_shared<pddlboat::AStarPlanner>(pddlboatProblem);
-
-    // cout << "Plan:" << endl;
-    // auto plan = make_shared<pddlboat::Plan>(pddlboatProblem);
-    // if (!task_planner->solve(*plan))
-    // {
-    //     cerr << "Failed to solve!" << endl;
-    //     return 1;
-    // }
-    // cout << *plan << endl;
     return 0;
 }

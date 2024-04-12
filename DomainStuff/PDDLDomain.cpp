@@ -4,7 +4,7 @@
 
 PDDLDomain::PDDLDomain(const string& domainFile) {
     parseDomain(domainFile);
-    cout << "Domain was parsed!!!" << endl;
+    // cout << "Domain was parsed!!!" << endl;
     // pddlDomain_->toPDDL(std::cout) << std::endl;
 
     initializeActions();

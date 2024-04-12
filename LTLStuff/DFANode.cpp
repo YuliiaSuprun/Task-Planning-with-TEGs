@@ -11,10 +11,13 @@ DFANode::DFANode(size_t state, bdd selfEdgeCondition, std::shared_ptr<DFANode> p
             // The path cost is initialized to 0.
             parent_edge_cost_ = 0;
             path_from_root_cost_ = 0;
+            path_length_ = 0;
         } else {
             // This not the root node.
             // Compute the path effort score "recursively"
             path_from_root_cost_ = parent_edge_cost_ + parent->path_from_root_cost_;
+            // Compute the path length "recursively"
+            path_length_ = parent->path_length_ + 1;
         }
     }
 
@@ -36,6 +39,20 @@ int DFANode::getParentEdgeCost() const {
 
 int DFANode::getPathCost() const {
     return path_from_root_cost_;
+}
+
+int DFANode::getPathLength() const {
+    return path_length_;
+}
+
+double DFANode::getPathDensity() const {
+    if (path_length_ == 0) {
+        // Root.
+        return 0;
+    }
+    return static_cast<double>(path_from_root_cost_) / path_length_;
+    // return static_cast<double>(path_from_root_cost_);
+    // return static_cast<double>(path_from_root_cost_) / std::pow(path_length_, 2);
 }
 
 bdd& DFANode::getSelfEdgeCondition() {
@@ -111,7 +128,7 @@ bool DFANode::updateParentEdgeCost(int new_parent_edge_cost, const std::map<std:
             // There is a path in the priority queue that ends on this node.
             auto handle = node_handles.at(currentNode);
             // Update the key value in the priority queue.
-            (*handle).first = currentNode->path_from_root_cost_;
+            (*handle).first = currentNode->getPathDensity();
             // "Reorder" the elements in the priority queue to reflect this change. 
             node_priority_queue.update(handle);
         }

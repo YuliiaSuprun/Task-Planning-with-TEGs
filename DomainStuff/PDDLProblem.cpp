@@ -8,14 +8,18 @@ PDDLProblem::PDDLProblem(const string& problemFile, shared_ptr<PDDLDomain> domai
 feedback_(feedback), use_landmarks_(use_landmarks),
 hamming_dist_(hamming_dist), bdd_dict_(make_shared<spot::bdd_dict>()) {
 
-    if (hamming_dist_) {
-        cout << "HAmming is true!!" << endl;
+    // Extracting the problem name
+    size_t lastSlashPos = problemFile.find_last_of('/');
+    size_t extensionPos = problemFile.find(".pddl");
+    if (lastSlashPos != string::npos && extensionPos != string::npos) {
+        problem_name_ = problemFile.substr(lastSlashPos + 1, extensionPos - lastSlashPos - 1);
     } else {
-        cout << "HAmming is false!!" << endl;
+        cerr << "Invalid problem file path format." << endl;
+        problem_name_ = ""; // Set to an empty string or handle the error as you see fit
     }
 
     parseProblem(problemFile, domainPtr);
-    cout << "Problem was parsed!!!" << endl;
+    // cout << "Problem was parsed!!!" << endl;
     // pddlProblem_->toPDDL(std::cout) << std::endl;
 
     // Set a start position.
@@ -33,11 +37,11 @@ hamming_dist_(hamming_dist), bdd_dict_(make_shared<spot::bdd_dict>()) {
     // Initialize a dfa manager.
     dfa_manager_ = make_shared<DFAManager>(bdd_dict_, feedback_, hamming_dist_);
 
-    std::cout << "Creating dfa for problem_id=" << problem_id_ << endl;
-    // Get a name for output files.
-    stringstream ss;
-    ss << "pddlDfa" << problem_id_;
-    filename_ = ss.str();
+    // std::cout << "Creating a DFA for the problem " << problem_name_ << endl;
+    // Create a name for output files.
+    filename_ = problem_name_ + "_pddl_dfa";
+
+    // std::cout << "The output file will be named: " << filename_ << endl;
 
     auto start1 = chrono::high_resolution_clock::now();
 
@@ -48,11 +52,11 @@ hamming_dist_(hamming_dist), bdd_dict_(make_shared<spot::bdd_dict>()) {
     dfa_manager_->construct_dfa(formula_);
 
     auto end1 = chrono::high_resolution_clock::now();
-    chrono::duration<double> elapsed_dfa = end1 - start1;
-    std::cout << "time of calculating the automaton: " << elapsed_dfa.count() << " seconds" << std::endl;
+    dfa_construction_time_ = end1 - start1;
+    // std::cout << "time of calculating the automaton: " << dfa_construction_time_.count() << " seconds" << std::endl;
 
     // dfa_manager_->print_dfa();
-    dfa_manager_->save_dfa(filename_);
+    // dfa_manager_->save_dfa(filename_);
 
     // Initialize domain and product managers.
     domain_manager_ = make_shared<DomainManager>(bdd_dict_, domain_, get_pred_mapping());
@@ -102,7 +106,7 @@ vector<ProductState> PDDLProblem::solve() {
     int curr_iter = 0;
 
     while (product_path_.empty() && curr_iter < max_num_iters) {
-        cout << "=== Iteration " << curr_iter++ << " ===" << endl;
+        // cout << "=== Iteration " << curr_iter++ << " ===" << endl;
         // domain_manager_->print_ap_mapping();
         // Pick a "likely" DFA trace that ends in the acceptance state.
         auto endTraceNode = dfa_manager_->generate_dfa_path();
@@ -138,6 +142,7 @@ void PDDLProblem::realize_dfa_trace(shared_ptr<DFANode>& endTraceNode) {
 
     size_t currentRegionIndex = 0;
     size_t maxRegionIndexReached = 0;
+    size_t max_num_wrong_dfa_trans = 300;
 
     set<ProductState> visited;
     visited.insert(start_state);
@@ -162,6 +167,8 @@ void PDDLProblem::realize_dfa_trace(shared_ptr<DFANode>& endTraceNode) {
 
     map<ProductState, vector<ProductState>> parent_map;
 
+    size_t curr_num_wrong_dfa_trans = 0;
+
     while (!regionQueues[dfa_start_state].empty()) {
         size_t curr_dfa_state = dfa_trace.at(currentRegionIndex);
         
@@ -173,7 +180,7 @@ void PDDLProblem::realize_dfa_trace(shared_ptr<DFANode>& endTraceNode) {
             continue;
         }
         if (queue.size() == 1) {
-            cout << "Trying to realize this transition: " << curr_dfa_state << "=>" << dfa_trace.at(currentRegionIndex+1) << endl;
+            // cout << "Trying to realize this transition: " << curr_dfa_state << "=>" << dfa_trace.at(currentRegionIndex+1) << endl;
         }
         // Queue is not empty!
         auto current_state_pair = queue.top();
@@ -184,6 +191,7 @@ void PDDLProblem::realize_dfa_trace(shared_ptr<DFANode>& endTraceNode) {
         // Check if state was expanded?
         // If not, then generate successors for this state!
         if (product_manager_->state_not_expanded(current_state)) {
+            num_expanded_nodes_++;
             // Expand the state.
             product_manager_->generate_successors(current_state);
         }
@@ -210,6 +218,15 @@ void PDDLProblem::realize_dfa_trace(shared_ptr<DFANode>& endTraceNode) {
                 if (feedback_) {
                     dfa_manager_->update_dfa_transition_cost(curr_dfa_state, next_dfa_state, SUCCESS_COST);
                 }
+
+                curr_num_wrong_dfa_trans++;
+                // cout << "curr_num_wrong_dfa_trans = " << curr_num_wrong_dfa_trans << endl;
+                if (curr_num_wrong_dfa_trans > max_num_wrong_dfa_trans) {
+                    // Give up on this trace!
+                    dfa_manager_->give_up_on_path(dfa_nodes.back(), dfa_nodes.at(currentRegionIndex+1));
+                    cout << "Giving up on transition: " << curr_dfa_state << "=>" << dfa_trace.at(currentRegionIndex+1) << endl;
+                    return;
+                }
                 // if (feedback_ && dfa_manager_->dfa_transition_cost(curr_dfa_state, next_dfa_state) != SUCCESS_COST) {
                 //     dfa_manager_->update_dfa_transition_cost(curr_dfa_state, next_dfa_state, SUCCESS_COST);
                 //     // Cache this for future reuse.
@@ -231,7 +248,9 @@ void PDDLProblem::realize_dfa_trace(shared_ptr<DFANode>& endTraceNode) {
  
             if (next_dfa_state == dfa_trace.at(currentRegionIndex + 1)) {
                 // We were able to get to the next DFA state in a trace!
-                cout << "Succesfully realized this transition: " << transition.in_state().get_dfa_state() << "=>" << transition.out_state().get_dfa_state() << endl; 
+                // cout << "Succesfully realized this transition: " << transition.in_state().get_dfa_state() << "=>" << transition.out_state().get_dfa_state() << endl; 
+
+                curr_num_wrong_dfa_trans = 0;
 
                 // Update the cost to 0 based on the success of the transition.
                 dfa_manager_->update_dfa_transition_cost(dfa_nodes.at(currentRegionIndex + 1), SUCCESS_COST);
@@ -381,4 +400,15 @@ string PDDLProblem::get_filename() const {
 
 map<string, pair<string, vector<string>>> PDDLProblem::get_pred_mapping() const {
     return formula_.get_pred_mapping();
+}
+
+double PDDLProblem::get_dfa_construction_time() const {
+    return dfa_construction_time_.count();
+}
+
+size_t PDDLProblem::get_num_generated_nodes() const {
+    return product_manager_->get_num_expanded_nodes();
+}
+size_t PDDLProblem::get_num_expanded_nodes() const {
+    return num_expanded_nodes_;
 }

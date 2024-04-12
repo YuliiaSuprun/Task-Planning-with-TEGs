@@ -129,3 +129,7 @@ DomainStateSet ProductManager::sample_landmarks(const bdd& edge_cond, const shar
 
     return landmarks;
 }
+
+size_t ProductManager::get_num_expanded_nodes() const {
+    return product_transitions_.size();
+}

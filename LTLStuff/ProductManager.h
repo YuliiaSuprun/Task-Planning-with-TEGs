@@ -29,6 +29,8 @@ public:
 
     DomainStateSet sample_landmarks(const bdd& edge_cond, const shared_ptr<DomainState> curr_domain_state, size_t num_landmarks=NUM_LANDMARKS);
 
+    size_t get_num_expanded_nodes() const;
+
 private:
     std::shared_ptr<DomainManager> domain_manager_;
     std::shared_ptr<DFAManager> dfa_manager_;

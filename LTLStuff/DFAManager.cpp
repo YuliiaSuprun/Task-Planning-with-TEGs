@@ -143,15 +143,18 @@ bdd DFAManager::get_self_edge_cond(size_t dfa_state) const{
             return edge.cond;
         }
     }
-    cerr << "ERROR: no condition for self-transition was found!" << endl;
-    return bddfalse;
+    cerr << "ERROR: no condition for self-transition was found for dfa state: " << dfa_state << endl;
+    return bddtrue;
 }
 
 shared_ptr<DFANode> DFAManager::generate_dfa_path() {
+    shared_ptr<DFANode> bestAcceptingNode = nullptr;
+    double bestScore = std::numeric_limits<double>::max();
 
     while (!nodePriorityQueue_.empty()) {
         auto currentNodePair = nodePriorityQueue_.top();
         nodePriorityQueue_.pop();
+        auto currentPathCost = currentNodePair.first;
         auto currentNode = currentNodePair.second;
 
         // Delete the handle for this node in the map.
@@ -160,10 +163,35 @@ shared_ptr<DFANode> DFAManager::generate_dfa_path() {
         size_t current_dfa_state = currentNode->getState();
 
         if (is_accepting_state(current_dfa_state)) {
-            auto dfa_trace = currentNode->getPathFromRoot();
-            cout << "Selected a DFA trace of size " << dfa_trace.size() - 1 << " and a cost of " << currentNodePair.first << endl;
-            print_dfa_path(dfa_trace);
-            return currentNode;
+            // auto curr_dfa_trace = currentNode->getPathFromRoot();
+            // cout << "Detected an accepting DFA trace of size " << curr_dfa_trace.size() - 1 << " and a cost of " << currentPathCost << endl;
+            // print_dfa_path(curr_dfa_trace);
+            if (currentPathCost < bestScore) {
+                
+                // Add the previous accepting node to the queue.
+                if (bestAcceptingNode) {
+                    add_node_to_queue(bestAcceptingNode);
+                    // cout << "It has a smaller cost then the previous best trace with a cost of " << bestScore <<  endl;
+                    // print_dfa_path(bestAcceptingNode->getPathFromRoot());
+                    // cout << "We add this old trace back to the queue" << endl;
+                }
+                bestScore = currentPathCost;
+                bestAcceptingNode = currentNode;
+                // print_node_priority_queue();
+            } else {
+                // cout << "It has a larger (or same) cost then the previous best trace with a cost of " << bestScore <<  endl;
+                // We just found a new trace, but it's inferior (or the same).
+                // Add it back to the queue.
+                // cout << "We add this new trace back to the queue" << endl;
+                add_node_to_queue(currentNode);
+                // Return the better path.
+                // auto dfa_trace = bestAcceptingNode->getPathFromRoot();
+                // cout << "Selected a DFA trace of size " << dfa_trace.size() - 1 << " and a cost of " << bestScore << endl;
+                // print_dfa_path(dfa_trace);
+                // print_node_priority_queue();
+                return bestAcceptingNode;
+            }
+            continue;
         }
         for (auto& edge: get_transitions(current_dfa_state)) {
             size_t next_dfa_state = edge.dst;
@@ -176,18 +204,15 @@ shared_ptr<DFANode> DFAManager::generate_dfa_path() {
                 } else {
                     edge_cost = dfa_transition_cost(current_dfa_state, next_dfa_state);
                 }
-            
-                int total_cost = currentNodePair.first + edge_cost;
 
                 auto childNode = make_shared<DFANode>(next_dfa_state, get_self_edge_cond(next_dfa_state), currentNode, edge.cond, edge_cost);
                 currentNode->addChild(childNode);
-
-                auto handle = nodePriorityQueue_.push(make_pair(total_cost, childNode));
-                node_handles_[childNode] = handle;
+                add_node_to_queue(childNode);
             }
         }
     }
-    return nullptr; // Return empty if no path is found
+    // cout << "Returning the last node" << endl;
+    return bestAcceptingNode; // Return empty if no path is found
 }
 
 // Define the transition_cost function based on past experiences.
@@ -237,6 +262,18 @@ void DFAManager::update_dfa_transition_cost(shared_ptr<DFANode>& node, int cost)
     // print_node_priority_queue();
 }
 
+void DFAManager::give_up_on_path(shared_ptr<DFANode>& endPathNode, shared_ptr<DFANode>& failureNode) {
+    // Add it back to the priority queue.
+    update_dfa_transition_cost(failureNode, FAILURE_COST);
+    add_node_to_queue(endPathNode);
+    // print_node_priority_queue();
+}
+
+void DFAManager::add_node_to_queue(shared_ptr<DFANode>& node) {
+    auto handle = nodePriorityQueue_.push(make_pair(node->getPathDensity(), node));
+    node_handles_[node] = handle;
+}
+
 void DFAManager::update_dfa_transition_cost(size_t dfaStateOut, size_t dfaStateIn, int cost) {
 
     if (!feedback_) {
@@ -252,8 +289,9 @@ void DFAManager::update_dfa_transition_cost(size_t dfaStateOut, size_t dfaStateI
 void DFAManager::initialize_node_priority_queue() {
     int start_state = get_start_state();
     auto root = make_shared<DFANode>(start_state, get_self_edge_cond(start_state));
-    auto handle = nodePriorityQueue_.push(make_pair(0, root));
-    node_handles_[root] = handle;
+    add_node_to_queue(root);
+    // auto handle = nodePriorityQueue_.push(make_pair(0, root));
+    // node_handles_[root] = handle;
 }
 
 void DFAManager::print_dfa_path(vector<size_t> dfa_path) const {
@@ -272,10 +310,11 @@ void DFAManager::print_node_priority_queue() {
     NodeHeap heapCopy = nodePriorityQueue_;  // Make a copy of the heap
     while (!heapCopy.empty()) {
         auto pair = heapCopy.top();
-        int cost = pair.first;
+        auto cost = pair.first;
         auto node = pair.second;
         // Print 'cost' and any information from 'node'
-        cout << "Cost: " << cost << ", DFA state: " << node->getState() << ", cost in the DFANode: " << node->getPathCost() << endl;
+        cout << "Average cost per edge: " << cost << "; Total path cost: " << node->getPathCost()  << ", ";
+        print_dfa_path(node->getPathFromRoot());
         heapCopy.pop();
     }
 }
@@ -343,5 +382,6 @@ int DFAManager::count_differing_aps(const bdd& bdd1, const bdd& bdd2) {
         }
     }
     // cout << "count is " << count << endl;
-    return 2*count-1;
+    return count;
+    // return DEFAULT_COST;
 }
