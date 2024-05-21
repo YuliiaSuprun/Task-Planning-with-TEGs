@@ -41,6 +41,7 @@ public:
     spot::internal::state_out<spot::digraph<spot::twa_graph_state, spot::twa_graph_edge_data>> get_transitions(size_t state) const;
     bool is_accepting_state(size_t state) const;
 
+    bdd get_edge_cond(size_t curr_dfa_state, size_t next_dfa_state) const;
     bdd get_self_edge_cond(size_t dfa_state) const;
 
     shared_ptr<DFANode> generate_dfa_path();

@@ -21,11 +21,16 @@
 #include <string>
 #include <set>
 
+#include <pddlboat/solver/planner.hpp>
+#include <pddlboat/solver/fdplanner.hpp>
+#include <pddlboat/solver/z3planner.hpp>
+#include <pddlboat/solver/astarplanner.hpp>
+
 using namespace std;
 
 class PDDLProblem {
 public:
-    PDDLProblem(const string& problemFile, shared_ptr<PDDLDomain> domainPtr, bool cache=false, bool feedback=false, bool use_landmarks=false, bool hamming_dist=false, int problem_id=0);
+    PDDLProblem(const string& problemFile, shared_ptr<PDDLDomain> domainPtr, bool cache=false, bool feedback=false, bool use_landmarks=false, bool hamming_dist=false, bool use_planner=false, int problem_id=0);
     ~PDDLProblem();
 
     // Method to get the wrapped pddlboat::Problem
@@ -48,6 +53,9 @@ private:
     void parseProblem(const string& problemFile, shared_ptr<PDDLDomain> domainPtr);
     void save_paths();
     void realize_dfa_trace(shared_ptr<DFANode>& endTraceNode);
+    void realize_dfa_trace_manually(shared_ptr<DFANode>& endTraceNode);
+    void realize_dfa_trace_with_planner(shared_ptr<DFANode>& endTraceNode);
+    pddlboat::ProblemPtr create_subproblem(bdd& edge_cond);
 
     vector<ProductState> construct_path(const map<ProductState, vector<ProductState>>& parent_map, ProductState target_state, bool cached=false, size_t start_dfa_state=0);
 
@@ -60,6 +68,7 @@ private:
     bool feedback_;
     bool use_landmarks_;
     bool hamming_dist_;
+    bool use_planner_;
     
     // DFA corresponding to LTL formula.
     spot::bdd_dict_ptr bdd_dict_;

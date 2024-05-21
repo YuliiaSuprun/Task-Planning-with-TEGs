@@ -27,6 +27,7 @@ public:
     set<bdd, BddComparator> get_all_equivalence_regions();
     map<bdd, DomainStateSet, BddComparator>& get_bdd_to_states_map();
     set<string> atomic_props(const shared_ptr<DomainState> domain_state);
+    string get_ap_name(const int var_num);
 
     void print_ap_to_states_mapping();
 
@@ -42,6 +43,7 @@ private:
 
     map<bdd, DomainStateSet, BddComparator> bdd_to_states_;
     map<shared_ptr<DomainState>, bdd, DomainStatePtrComparator> state_to_bdd_;
+    map<int, string> bdd_to_ap_;
 
     bool use_pred_mapping_;
 };

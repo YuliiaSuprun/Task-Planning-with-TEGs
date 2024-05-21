@@ -9,7 +9,8 @@ DomainManager::DomainManager(shared_ptr<spot::bdd_dict> bddDict, shared_ptr<Doma
     for (const auto& prop_pair : ap_to_states_mapping_) {
         string prop = prop_pair.first;
         spot::formula prop_formula = spot::formula::ap(prop);
-        bdd_dict_->register_proposition(prop_formula, nullptr);
+        int bdd_num = bdd_dict_->register_proposition(prop_formula, nullptr);
+        bdd_to_ap_.insert({bdd_num, prop});
     }
     // Print the "proposition to bdd" mapping.
     // bdd_dict_->dump(std::std::cout) << "---\n";
@@ -30,7 +31,8 @@ DomainManager::DomainManager(shared_ptr<spot::bdd_dict> bddDict, shared_ptr<Doma
     for (const auto& prop_pair : pred_mapping_) {
         string prop = prop_pair.first;
         spot::formula prop_formula = spot::formula::ap(prop);
-        bdd_dict_->register_proposition(prop_formula, nullptr);
+        int bdd_num = bdd_dict_->register_proposition(prop_formula, nullptr);
+        bdd_to_ap_.insert({bdd_num, prop});
     }
     // Print the "proposition to bdd" mapping.
     // bdd_dict_->dump(std::std::cout) << "---\n";
@@ -220,4 +222,8 @@ void DomainManager::print_ap_to_states_mapping() {
         }
         std::cout << "\n";
     }
+}
+
+string DomainManager::get_ap_name(const int var_num) {
+    return bdd_to_ap_.at(var_num);
 }

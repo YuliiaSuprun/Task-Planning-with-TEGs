@@ -135,16 +135,20 @@ spot::internal::state_out<spot::digraph<spot::twa_graph_state, spot::twa_graph_e
     return dfa_->out(state);
 }
 
-bdd DFAManager::get_self_edge_cond(size_t dfa_state) const{
-     for (auto& edge: dfa_->out(dfa_state)) {
-        // Check if this is a self-edge.
-        if (edge.dst == dfa_state) { 
-            // std::cout << "Self-transition was found!" << endl;
+bdd DFAManager::get_edge_cond(size_t curr_dfa_state, size_t next_dfa_state) const {
+    for (auto& edge: dfa_->out(curr_dfa_state)) {
+        // Check if this is an edge we are looking for.
+        if (edge.dst == next_dfa_state) { 
+            // std::cout << "Transition was found: " << curr_dfa_state << "->" << next_dfa_state << endl;
             return edge.cond;
         }
     }
-    cerr << "ERROR: no condition for self-transition was found for dfa state: " << dfa_state << endl;
-    return bddtrue;
+    cerr << "ERROR: no transition was found for: " << curr_dfa_state << "->" << next_dfa_state << endl;
+    return bddfalse;
+}
+
+bdd DFAManager::get_self_edge_cond(size_t dfa_state) const{
+    return get_edge_cond(dfa_state, dfa_state);
 }
 
 shared_ptr<DFANode> DFAManager::generate_dfa_path() {

@@ -26,12 +26,12 @@
 using namespace std;
 
 // Example of the command
-// ./run.sh /Users/yuliiasuprun/Desktop/Classes/AlgoRobotics/Research/Code/Plan4Past-data/deterministic/LTLf/TB15/blocksworld/domain.pddl /Users/yuliiasuprun/Desktop/Classes/AlgoRobotics/Research/Code/Plan4Past-data/deterministic/LTLf/TB15/blocksworld/e03.pddl -f -c -h
+// ./run.sh /Users/yuliiasuprun/Desktop/Classes/AlgoRobotics/Research/Code/Plan4Past-data/deterministic/LTLf/TB15/blocksworld/domain.pddl /Users/yuliiasuprun/Desktop/Classes/AlgoRobotics/Research/Code/Plan4Past-data/deterministic/LTLf/TB15/blocksworld/a03.pddl 3 -f -c -h
 
 
 int main(int argc, char** argv) {
     if (argc < 4) { 
-        cerr << "Usage: " << argv[0] << " <PDDL Domain File> <PDDL Problem File> <Number of Runs> [-c] [-f] [-l] [-h]" << endl;
+        cerr << "Usage: " << argv[0] << " <PDDL Domain File> <PDDL Problem File> <Number of Runs> [-c] [-f] [-l] [-h] [-p]" << endl;
         exit(EXIT_FAILURE);
     }
 
@@ -43,6 +43,7 @@ int main(int argc, char** argv) {
     bool feedback = false;
     bool use_landmarks = false;
     bool hamming_dist = false;
+    bool use_planner = false;
 
     for (int i = 4; i < argc; ++i) {
         string arg = argv[i];
@@ -54,6 +55,8 @@ int main(int argc, char** argv) {
             use_landmarks = true;
         } else if (arg == "-h") {
             hamming_dist = true;
+        }  else if (arg == "-p") {
+            use_planner = true;
         } else {
             cerr << "Unknown argument: " << arg << endl;
             exit(EXIT_FAILURE);
@@ -75,7 +78,7 @@ int main(int argc, char** argv) {
         shared_ptr<PDDLProblem> pddlProblem;
         try {
             pddlDomain = make_shared<PDDLDomain>(domainFilePath);
-            pddlProblem = make_shared<PDDLProblem>(problemFilePath, pddlDomain, cache, feedback, use_landmarks, hamming_dist);
+            pddlProblem = make_shared<PDDLProblem>(problemFilePath, pddlDomain, cache, feedback, use_landmarks, hamming_dist, use_planner);
         } catch (const std::exception& e) {
             cerr << "Error: " << e.what() << endl;
             exit(EXIT_FAILURE);
@@ -111,7 +114,7 @@ int main(int argc, char** argv) {
             // pddlProblem->print_product_path();
             // pddlProblem->print_domain_path();
             pddlProblem->print_dfa_path();
-            totalPlanLength += pddlProblem->get_domain_path().size();
+            totalPlanLength += (pddlProblem->get_domain_path().size()-1);
         } else {
             cout << "No solution found for problem" << endl;
         }
@@ -126,6 +129,7 @@ int main(int argc, char** argv) {
     cout << "First DFA construction time: " << firstRunDFATime << " seconds" << endl;
     cout << "Average DFA construction time (without first): " << averageDFATimeNoFirst << " seconds" << endl;
     cout << "Average search time: " << averageSearchTime << " seconds" << endl;
+    cout << "Average total time: " << averageDFATime + averageSearchTime << " seconds" << endl;
     cout << "Average number of expanded nodes: " << averageExpandedNodes << endl;
     cout << "Average plan length: " << averagePlanLength << endl;
 
