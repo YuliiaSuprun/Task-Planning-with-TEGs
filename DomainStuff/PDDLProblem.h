@@ -55,14 +55,14 @@ private:
     void realize_dfa_trace(shared_ptr<DFANode>& endTraceNode);
     void realize_dfa_trace_manually(shared_ptr<DFANode>& endTraceNode);
     void realize_dfa_trace_with_planner(shared_ptr<DFANode>& endTraceNode);
-    pddlboat::ProblemPtr create_subproblem(bdd& edge_cond);
+    pddlboat::ProblemPtr create_subproblem(bdd& edge_cond, shared_ptr<PDDLState> start_state);
 
     vector<ProductState> construct_path(const map<ProductState, vector<ProductState>>& parent_map, ProductState target_state, bool cached=false, size_t start_dfa_state=0);
 
     pddlboat::ProblemPtr pddlProblem_;
     LTLFormula formula_;
     shared_ptr<Domain> domain_;
-    shared_ptr<DomainState> start_domain_state_;
+    shared_ptr<PDDLState> start_domain_state_;
     int problem_id_;
     bool cache_;
     bool feedback_;

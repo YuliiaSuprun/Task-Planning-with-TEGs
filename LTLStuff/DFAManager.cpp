@@ -189,9 +189,9 @@ shared_ptr<DFANode> DFAManager::generate_dfa_path() {
                 // cout << "We add this new trace back to the queue" << endl;
                 add_node_to_queue(currentNode);
                 // Return the better path.
-                // auto dfa_trace = bestAcceptingNode->getPathFromRoot();
-                // cout << "Selected a DFA trace of size " << dfa_trace.size() - 1 << " and a cost of " << bestScore << endl;
-                // print_dfa_path(dfa_trace);
+                auto dfa_trace = bestAcceptingNode->getPathFromRoot();
+                cout << "Selected a DFA trace of size " << dfa_trace.size() - 1 << " and a cost of " << bestScore << endl;
+                print_dfa_path(dfa_trace);
                 // print_node_priority_queue();
                 return bestAcceptingNode;
             }

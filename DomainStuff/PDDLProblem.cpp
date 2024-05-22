@@ -107,7 +107,7 @@ vector<ProductState> PDDLProblem::solve() {
     int curr_iter = 0;
 
     while (product_path_.empty() && curr_iter < max_num_iters) {
-        // cout << "=== Iteration " << curr_iter++ << " ===" << endl;
+        cout << "=== Iteration " << curr_iter++ << " ===" << endl;
         // domain_manager_->print_ap_mapping();
         // Pick a "likely" DFA trace that ends in the acceptance state.
         auto endTraceNode = dfa_manager_->generate_dfa_path();
@@ -365,11 +365,13 @@ void PDDLProblem::realize_dfa_trace_with_planner(shared_ptr<DFANode>& endTraceNo
 
     // int curr_state_heuristic = 0;
     // TODO: Instantiate a subproblem (pddlboat::ProblemPtr)
-    pddlboat::ProblemPtr start_subproblem = create_subproblem(dfa_nodes.at(1)->getParentEdgeCondition());
+    pddlboat::ProblemPtr start_subproblem = create_subproblem(dfa_nodes.at(1)->getParentEdgeCondition(), start_domain_state_);
     regionSubproblems.insert({dfa_start_state, start_subproblem});
 
     map<ProductState, vector<ProductState>> parent_map;
     // size_t curr_num_wrong_dfa_trans = 0;
+
+
 
     while (!regionSubproblems.empty()) {
         size_t curr_dfa_state = dfa_trace.at(currentRegionIndex);
@@ -404,14 +406,26 @@ void PDDLProblem::realize_dfa_trace_with_planner(shared_ptr<DFANode>& endTraceNo
         } else {
             cout << *plan << endl;
         }
-        return;
-        // TODO: get a path from the plan.
+
+        // Get a trace of states from the plan.
+        auto state_trace = plan->getStepStates(true);
         vector<shared_ptr<DomainState>> domain_path;
-        // TODO: verify domain_path and augment elems with dfa states.
         vector<ProductState> product_path;
-        // TODO: get the next state (destination in the plan)  
-        shared_ptr<DomainState> dest_domain_state = domain_path.back();
-        ProductState next_state = product_path.back();
+
+        if (state_trace.empty()) {
+            cerr << "ERROR: the plan is empty!" << endl;
+        }
+        // Iterate over all domain states except the last one
+        for (int i = state_trace.size() - 2; i >= 0; --i) {
+            auto domain_state = make_shared<PDDLState>(state_trace[i]);
+            domain_path.push_back(domain_state);
+            product_path.emplace_back(domain_state, curr_dfa_state);
+        }
+        
+        // Handle the last domain state separately
+        auto last_domain_state = make_shared<PDDLState>(state_trace.back());
+        ProductState next_state(last_domain_state, next_dfa_state);
+        // TODO: verify domain_path and augment elems with dfa states.
 
         // Check if it was already explored.
         if (visited.find(next_state) != visited.end()) {
@@ -420,13 +434,12 @@ void PDDLProblem::realize_dfa_trace_with_planner(shared_ptr<DFANode>& endTraceNo
             continue;
         }
 
-        // TODO: encode obstacles!    
-
         // We were able to get to the next DFA state in a trace!
         cout << "Succesfully realized this transition: " << curr_dfa_state << "=>" << next_dfa_state << endl;
 
         // Add it to the parent map to be able to backtrack.
         parent_map.emplace(next_state, product_path);
+        cout << "emplaced state: " << next_state << endl;
 
         // Make all states in the path visited.
         for (const auto& product_state : product_path) {
@@ -447,6 +460,7 @@ void PDDLProblem::realize_dfa_trace_with_planner(shared_ptr<DFANode>& endTraceNo
         // Check if it's the accepting state (last in the dfa trace).
         // If so, we have a solution!
         if (currentRegionIndex == dfa_trace.size() - 1) {
+            cout << "We have reached the last accepting state in the dfa trace" << endl;
             // Backtrack to get the full path.
             product_path_ = construct_path(parent_map, next_state);
             save_paths();
@@ -454,7 +468,7 @@ void PDDLProblem::realize_dfa_trace_with_planner(shared_ptr<DFANode>& endTraceNo
         }
 
         // TODO: instantiate a subproblem.
-        pddlboat::ProblemPtr next_subproblem;
+        pddlboat::ProblemPtr next_subproblem = create_subproblem(dfa_nodes.at(currentRegionIndex+1)->getParentEdgeCondition(), last_domain_state);
         regionSubproblems.insert({next_dfa_state, next_subproblem});
 
     } 
@@ -468,6 +482,8 @@ vector<ProductState> PDDLProblem::construct_path(const map<ProductState, vector<
     path.push_back(target_state);
 
     while (parent_map.find(target_state) != parent_map.end()) {
+
+        cout << "Target state was found: " << target_state << endl;
 
         const auto& preceding_path = parent_map.at(target_state);
 
@@ -484,6 +500,8 @@ vector<ProductState> PDDLProblem::construct_path(const map<ProductState, vector<
 
         path.insert(path.end(), preceding_path.begin(), preceding_path.end());
     }
+
+    cout << "Target state was NOT found: " << target_state << endl;
 
     if (!cached) {
         reverse(path.begin(), path.end());
@@ -558,7 +576,7 @@ size_t PDDLProblem::get_num_expanded_nodes() const {
     return num_expanded_nodes_;
 }
 
-pddlboat::ProblemPtr PDDLProblem::create_subproblem(bdd& edge_cond) {
+pddlboat::ProblemPtr PDDLProblem::create_subproblem(bdd& edge_cond, shared_ptr<PDDLState> start_state) {
     cout << "Edge_condition: " << edge_cond << endl;
 
     pddlboat::ProblemPtr subproblem(pddlProblem_);
@@ -644,5 +662,8 @@ pddlboat::ProblemPtr PDDLProblem::create_subproblem(bdd& edge_cond) {
 
     cout << "Subgoal is: " << endl;
     subproblem->goal->toPDDL(std::cout) << std::endl;
+
+    subproblem->start = start_state->getPddlboatStatePtr();
+
     return subproblem;
 }
