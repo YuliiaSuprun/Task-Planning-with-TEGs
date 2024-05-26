@@ -23,6 +23,8 @@
 
 #include <pddlboat/solver/planner.hpp>
 #include <pddlboat/solver/fdplanner.hpp>
+#include <pddlboat/solver/ffplanner.hpp>
+#include <pddlboat/solver/symkplanner.hpp>
 #include <pddlboat/solver/z3planner.hpp>
 #include <pddlboat/solver/astarplanner.hpp>
 

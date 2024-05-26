@@ -14,7 +14,7 @@ DFAManager::DFAManager(shared_ptr<spot::bdd_dict> bddDict, bool feedback, bool h
 
 void DFAManager::construct_dfa(const LTLFormula& formula) {
     spot::formula spot_formula = formula.get_spot_formula();
-    if (spot_formula == nullptr) {
+    if (spot_formula == spot::formula()) {
         cerr << "Failed to parse the LTL formula" << endl;
         return;
     }
@@ -22,12 +22,17 @@ void DFAManager::construct_dfa(const LTLFormula& formula) {
     spot::translator trans(bdd_dict_);
     // Set a type to BA (Büchi Automaton).
     trans.set_type(spot::postprocessor::Buchi);
+    
     // Small (default) and Deterministic are exclusive choices for set_pref().
     // Indicate whether a smaller non-deterministic automaton should be
     // preferred over a deterministic automaton (no guarantees tho).
     trans.set_pref(spot::postprocessor::Deterministic); 
     // The automaton must use a state-based acceptance.
     trans.set_pref(spot::postprocessor::SBAcc);
+
+    // trans.set_pref(spot::postprocessor::SBAcc
+    //              | spot::postprocessor::Small);
+
     // Translate LTL formula to a DFA using Spot tranlsator.
     spot::twa_graph_ptr translated_dfa = trans.run(spot::from_ltlf(spot_formula));
 

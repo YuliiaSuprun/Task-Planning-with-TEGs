@@ -111,7 +111,7 @@ int main(int argc, char** argv) {
 
         if (!solution_path.empty()) {
             cout << "Solution for problem is:" << endl;
-            // pddlProblem->print_product_path();
+            pddlProblem->print_product_path();
             // pddlProblem->print_domain_path();
             pddlProblem->print_dfa_path();
             totalPlanLength += (pddlProblem->get_domain_path().size()-1);

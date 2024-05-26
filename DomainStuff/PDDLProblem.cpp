@@ -49,6 +49,8 @@ hamming_dist_(hamming_dist), use_planner_(use_planner), bdd_dict_(make_shared<sp
     // Convert to formula_str to LTLFormula object.
     formula_ = LTLFormula(pddlProblem_->goal->toLTL(), pred_mapping);
 
+    cout << "Formula: " << formula_ << endl;
+
     // Compute the DFA corresponding to the given LTL formula.
     dfa_manager_->construct_dfa(formula_);
 
@@ -364,7 +366,7 @@ void PDDLProblem::realize_dfa_trace_with_planner(shared_ptr<DFANode>& endTraceNo
     map<size_t, pddlboat::ProblemPtr> regionSubproblems;
 
     // int curr_state_heuristic = 0;
-    // TODO: Instantiate a subproblem (pddlboat::ProblemPtr)
+    // Instantiate a subproblem (pddlboat::ProblemPtr)
     pddlboat::ProblemPtr start_subproblem = create_subproblem(dfa_nodes.at(1)->getParentEdgeCondition(), start_domain_state_);
     regionSubproblems.insert({dfa_start_state, start_subproblem});
 
@@ -390,12 +392,18 @@ void PDDLProblem::realize_dfa_trace_with_planner(shared_ptr<DFANode>& endTraceNo
 
         // Solve the problem
         // pddlboat::Z3Planner::Options options;
-        // options.dump_clauses = true;
+        // options.dump_clauses = false;
         // options.horizon.max = 4;
-        // auto task_planner = make_shared<pddlboat::Z3Planner>(pddlboatProblem, options);
-        cout << "Before task planner" << endl;
+        // auto task_planner = make_shared<pddlboat::Z3Planner>(subproblem, options);
+
+        // auto task_planner = make_shared<pddlboat::FastDownwardPlanner>(subproblem);
+
+        // auto task_planner = make_shared<pddlboat::FastForwardPlanner>(subproblem);
+
+        // auto task_planner = make_shared<pddlboat::SymKPlanner>(subproblem);
+
         auto task_planner = make_shared<pddlboat::AStarPlanner>(subproblem);
-        cout << "After task planner" << endl;
+ 
         cout << "Plan:" << endl;
         auto plan = make_shared<pddlboat::Plan>(subproblem);
         if (!task_planner->solve(*plan))
@@ -439,7 +447,7 @@ void PDDLProblem::realize_dfa_trace_with_planner(shared_ptr<DFANode>& endTraceNo
 
         // Add it to the parent map to be able to backtrack.
         parent_map.emplace(next_state, product_path);
-        cout << "emplaced state: " << next_state << endl;
+        // cout << "emplaced state: " << next_state << endl;
 
         // Make all states in the path visited.
         for (const auto& product_state : product_path) {
@@ -460,7 +468,7 @@ void PDDLProblem::realize_dfa_trace_with_planner(shared_ptr<DFANode>& endTraceNo
         // Check if it's the accepting state (last in the dfa trace).
         // If so, we have a solution!
         if (currentRegionIndex == dfa_trace.size() - 1) {
-            cout << "We have reached the last accepting state in the dfa trace" << endl;
+            // cout << "We have reached the last accepting state in the dfa trace" << endl;
             // Backtrack to get the full path.
             product_path_ = construct_path(parent_map, next_state);
             save_paths();
@@ -483,7 +491,7 @@ vector<ProductState> PDDLProblem::construct_path(const map<ProductState, vector<
 
     while (parent_map.find(target_state) != parent_map.end()) {
 
-        cout << "Target state was found: " << target_state << endl;
+        // cout << "Target state was found: " << target_state << endl;
 
         const auto& preceding_path = parent_map.at(target_state);
 
@@ -501,7 +509,7 @@ vector<ProductState> PDDLProblem::construct_path(const map<ProductState, vector<
         path.insert(path.end(), preceding_path.begin(), preceding_path.end());
     }
 
-    cout << "Target state was NOT found: " << target_state << endl;
+    // cout << "Target state was NOT found: " << target_state << endl;
 
     if (!cached) {
         reverse(path.begin(), path.end());
@@ -577,7 +585,7 @@ size_t PDDLProblem::get_num_expanded_nodes() const {
 }
 
 pddlboat::ProblemPtr PDDLProblem::create_subproblem(bdd& edge_cond, shared_ptr<PDDLState> start_state) {
-    cout << "Edge_condition: " << edge_cond << endl;
+    // cout << "Edge_condition: " << edge_cond << endl;
 
     pddlboat::ProblemPtr subproblem(pddlProblem_);
     // Vector to collect bound predicates

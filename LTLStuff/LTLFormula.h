@@ -74,7 +74,14 @@ public:
     spot::formula get_spot_formula() const {
         spot::parsed_formula pf = spot::parse_infix_psl(formula_);
         // Here, we could also handle any parsing errors.
-        (void) pf.format_errors(cerr);
+        // Handle any parsing errors
+        if (pf.format_errors(std::cerr)) {
+            std::cerr << "Error parsing the formula: " << formula_ << std::endl;
+            return spot::formula(); // Return an empty formula in case of error
+        }
+        // Dump the formula for debugging
+        // pf.f.dump(std::cout);
+        // std::cout << std::endl;
         // cout << "spot formula: " << pf.f << endl;
         return pf.f;
     }
