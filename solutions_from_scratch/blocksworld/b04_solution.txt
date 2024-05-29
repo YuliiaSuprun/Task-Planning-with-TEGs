@@ -1,0 +1,57 @@
+DFA Path:
+0 -> 1
+
+Product Path:
+((clear b1)
+(clear b2)
+(clear b3)
+(clear b4)
+(clear b5)
+(clear b6)
+(emptyhand)
+(ontable b1)
+(ontable b2)
+(ontable b3)
+(ontable b4)
+(ontable b5)
+(ontable b6)
+, DFA: 0) -> ((clear b1)
+(clear b2)
+(clear b3)
+(clear b4)
+(clear b5)
+(holding b6)
+(ontable b1)
+(ontable b2)
+(ontable b3)
+(ontable b4)
+(ontable b5)
+, DFA: 0) -> ((clear b2)
+(clear b3)
+(clear b4)
+(clear b5)
+(clear b6)
+(emptyhand)
+(on b6 b1)
+(ontable b1)
+(ontable b2)
+(ontable b3)
+(ontable b4)
+(ontable b5)
+, DFA: 1)
+For 50 runs: 
+Average DFA construction time: 0.0774204 seconds
+First DFA construction time: 0.00316717 seconds
+Average DFA construction time (without first): 0.0766444 seconds
+Average search time: 8.34945 seconds
+Average total time: 8.42687 seconds
+Average number of expanded nodes: 8708.56
+Average plan length: 133.22
+For 50 runs: 
+Average DFA construction time: 0.0791058 seconds
+First DFA construction time: 0.0021179 seconds
+Average DFA construction time (without first): 0.0783211 seconds
+Average search time: 8.38236 seconds
+Average total time: 8.46147 seconds
+Average number of expanded nodes: 8837.56
+Average plan length: 133.22

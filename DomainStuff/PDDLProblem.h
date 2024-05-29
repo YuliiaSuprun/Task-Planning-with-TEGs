@@ -32,7 +32,7 @@ using namespace std;
 
 class PDDLProblem {
 public:
-    PDDLProblem(const string& problemFile, shared_ptr<PDDLDomain> domainPtr, bool cache=false, bool feedback=false, bool use_landmarks=false, bool hamming_dist=false, bool use_planner=false);
+    PDDLProblem(const string& problemFile, shared_ptr<PDDLDomain> domainPtr, bool cache=false, bool feedback=false, bool use_landmarks=false, bool hamming_dist=false, bool use_planner=false, bool save_dfa=false);
     ~PDDLProblem();
 
     // Method to get the wrapped pddlboat::Problem
@@ -74,6 +74,7 @@ private:
     bool use_landmarks_;
     bool hamming_dist_;
     bool use_planner_;
+    bool save_dfa_;
     
     // DFA corresponding to LTL formula.
     spot::bdd_dict_ptr bdd_dict_;
