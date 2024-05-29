@@ -1,4 +1,6 @@
 #include <iostream>
+#include <fstream>
+#include <filesystem>
 #include <vector>
 #include <set>
 #include <map>
@@ -71,6 +73,7 @@ int main(int argc, char** argv) {
 
     size_t totalExpandedNodes = 0;
     size_t totalPlanLength = 0;
+    string solution_file_path;
 
     for (int run = 0; run < numRuns; ++run) {
         // Instantiate PDDLDomain and PDDLProblem.
@@ -110,8 +113,9 @@ int main(int argc, char** argv) {
         cout << "Run " << (run + 1) << " DFA Time: " << dfa_time << " Search Time: " << elapsed.count() << " seconds" << endl;
 
         if (!solution_path.empty()) {
-            cout << "Solution for problem is:" << endl;
-            pddlProblem->print_product_path();
+            // cout << "Writing solution to a file..." << endl;
+            solution_file_path = pddlProblem->write_solution_to_file();
+            // pddlProblem->print_product_path();
             // pddlProblem->print_domain_path();
             pddlProblem->print_dfa_path();
             totalPlanLength += (pddlProblem->get_domain_path().size()-1);
@@ -121,6 +125,7 @@ int main(int argc, char** argv) {
     }
     double averageDFATime = totalDFATime / numRuns;
     double averageSearchTime = totalSearchTime / numRuns;
+    double averageTotalTime = averageDFATime + averageSearchTime;
     double averageDFATimeNoFirst = (numRuns > 1) ? (DFATimeWithoutFirst / (numRuns-1)) : 0;
     double averageExpandedNodes = static_cast<double>(totalExpandedNodes) / numRuns;
     double averagePlanLength = static_cast<double>(totalPlanLength) / numRuns;
@@ -129,9 +134,31 @@ int main(int argc, char** argv) {
     cout << "First DFA construction time: " << firstRunDFATime << " seconds" << endl;
     cout << "Average DFA construction time (without first): " << averageDFATimeNoFirst << " seconds" << endl;
     cout << "Average search time: " << averageSearchTime << " seconds" << endl;
-    cout << "Average total time: " << averageDFATime + averageSearchTime << " seconds" << endl;
+    cout << "Average total time: " << averageTotalTime << " seconds" << endl;
     cout << "Average number of expanded nodes: " << averageExpandedNodes << endl;
     cout << "Average plan length: " << averagePlanLength << endl;
+
+    if (!solution_file_path.empty()) {
+
+        // Open the solution file for appending
+        std::ofstream ofs(solution_file_path, std::ios_base::app);
+
+        if (ofs.is_open()) {
+            ofs << "For " << numRuns << " runs: " << std::endl;
+            ofs << "Average DFA construction time: " << averageDFATime << " seconds" << std::endl;
+            ofs << "First DFA construction time: " << firstRunDFATime << " seconds" << std::endl;
+            ofs << "Average DFA construction time (without first): " << averageDFATimeNoFirst << " seconds" << std::endl;
+            ofs << "Average search time: " << averageSearchTime << " seconds" << std::endl;
+            ofs << "Average total time: " << averageTotalTime << " seconds" << std::endl;
+            ofs << "Average number of expanded nodes: " << averageExpandedNodes << std::endl;
+            ofs << "Average plan length: " << averagePlanLength << std::endl;
+
+            // Close the file
+            ofs.close();
+        } else {
+            std::cerr << "Failed to open file: " << solution_file_path << std::endl;
+        }
+    }
 
     return 0;
 }

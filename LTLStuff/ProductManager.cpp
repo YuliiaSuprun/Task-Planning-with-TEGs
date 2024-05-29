@@ -59,6 +59,10 @@ void ProductManager::generate_successors(const ProductState& prod_state) {
 }
 
 vector<ProductTransition> ProductManager::get_transitions(const ProductState& prod_state) {
+    if (product_transitions_.count(prod_state) == 0) {
+        // No transitions from in_state were found.
+        return vector<ProductTransition>();
+    }
     return product_transitions_.at(prod_state);
 }
 

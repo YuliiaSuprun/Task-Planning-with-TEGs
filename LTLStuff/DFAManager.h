@@ -32,7 +32,7 @@ public:
     void construct_dfa(const LTLFormula& formula);
 
     // Save DFA to DOT and PNG files
-    void save_dfa(const string& filename);
+    void save_dfa(const string& filename, const string& subdirname="");
 
     void print_dfa();
 

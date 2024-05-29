@@ -32,7 +32,7 @@ using namespace std;
 
 class PDDLProblem {
 public:
-    PDDLProblem(const string& problemFile, shared_ptr<PDDLDomain> domainPtr, bool cache=false, bool feedback=false, bool use_landmarks=false, bool hamming_dist=false, bool use_planner=false, int problem_id=0);
+    PDDLProblem(const string& problemFile, shared_ptr<PDDLDomain> domainPtr, bool cache=false, bool feedback=false, bool use_landmarks=false, bool hamming_dist=false, bool use_planner=false);
     ~PDDLProblem();
 
     // Method to get the wrapped pddlboat::Problem
@@ -51,13 +51,17 @@ public:
     void print_domain_path() const;
     void print_dfa_path() const;
 
+    string write_solution_to_file() const;
+
 private:
+    void extract_names(const string& problemFile);
     void parseProblem(const string& problemFile, shared_ptr<PDDLDomain> domainPtr);
     void save_paths();
     void realize_dfa_trace(shared_ptr<DFANode>& endTraceNode);
     void realize_dfa_trace_manually(shared_ptr<DFANode>& endTraceNode);
     void realize_dfa_trace_with_planner(shared_ptr<DFANode>& endTraceNode);
     pddlboat::ProblemPtr create_subproblem(bdd& edge_cond, shared_ptr<PDDLState> start_state);
+    void print_bdd(bdd& expr);
 
     vector<ProductState> construct_path(const map<ProductState, vector<ProductState>>& parent_map, ProductState target_state, bool cached=false, size_t start_dfa_state=0);
 
@@ -65,7 +69,6 @@ private:
     LTLFormula formula_;
     shared_ptr<Domain> domain_;
     shared_ptr<PDDLState> start_domain_state_;
-    int problem_id_;
     bool cache_;
     bool feedback_;
     bool use_landmarks_;
@@ -86,6 +89,7 @@ private:
 
     string filename_;
     string problem_name_;
+    string domain_name_;
     chrono::duration<double> dfa_construction_time_;
     size_t num_expanded_nodes_;
 };

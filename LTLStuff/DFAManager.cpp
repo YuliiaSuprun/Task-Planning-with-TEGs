@@ -2,6 +2,7 @@
 #include <fstream>
 #include <iostream>
 #include <graphviz/gvc.h>
+#include <filesystem>  // Requires C++17
 
 using namespace std;
 
@@ -39,12 +40,34 @@ void DFAManager::construct_dfa(const LTLFormula& formula) {
     dfa_ = spot::to_finite(translated_dfa);
 }
 
-void DFAManager::save_dfa(const std::string& filename) {
+void DFAManager::save_dfa(const std::string& filename, const std::string& subdirname) {
 
-    string dot_filename = filename + ".dot";
-    string png_filename = filename + ".png";
+    string dirname = "generated_dfa";
+
+    // Create the dfa directory if it doesn't exist
+    filesystem::create_directory(dirname);
+
+    // Construct the file path
+    string dot_filename = dirname + "/" + filename + ".dot";
+    string png_filename = dirname + "/" + filename + ".png";
+
+    if (!subdirname.empty()) {
+        // Create the subdirectory if it doesn't exist
+        string subdir_path = dirname + "/" + subdirname;
+        filesystem::create_directory(subdir_path);
+
+        // Update the file path
+        dot_filename = subdir_path + "/" + filename + ".dot";
+        png_filename = subdir_path + "/" + filename + ".png";
+    }
+    
 
     ofstream out(dot_filename);
+    // Check if the file is open
+    if (!out.is_open()) {
+        cerr << "Failed to open file: " << dot_filename << endl;
+        return;
+    }
     spot::print_dot(out, dfa_);
     out.close();
 
@@ -149,7 +172,7 @@ bdd DFAManager::get_edge_cond(size_t curr_dfa_state, size_t next_dfa_state) cons
         }
     }
     cerr << "ERROR: no transition was found for: " << curr_dfa_state << "->" << next_dfa_state << endl;
-    return bddfalse;
+    return bddtrue;
 }
 
 bdd DFAManager::get_self_edge_cond(size_t dfa_state) const{
@@ -371,7 +394,7 @@ int DFAManager::count_differing_aps(const bdd& bdd1, const bdd& bdd2) {
     // cout << "bdd2: " << bdd2 << endl;
     int count = 0;
 
-    for (size_t i = 0; i < bdd_dict_->var_map.size(); ++i) {
+    for (size_t i = 0; i < bdd_dict_->var_map.size() + 1; ++i) {
         bdd p = bdd_ithvar(i);  // Represents the atomic proposition 'p'
         bdd np = bdd_nithvar(i); // Represents the negation of 'p'
 

@@ -83,7 +83,11 @@ bdd DomainManager::generate_bdd(const shared_ptr<DomainState> domain_state) {
             if (!pddlboatStatePtr->isTrue(predicate_name, assignment)) {
                 // prop is negative!
                 prop_bdd = bdd_not(prop_bdd);
-            }   // Otherwise, prop has a positive form. Do nothing.
+                // cout << "Predicate " << prop << " is false!" << endl;
+            }  else {
+                // Otherwise, prop has a positive form. Do nothing.
+                // cout << "Predicate " << prop << " is positive!" << endl;
+            } 
 
             // Logical AND with the result
             result &= prop_bdd;
