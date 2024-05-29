@@ -415,10 +415,10 @@ void PDDLProblem::realize_dfa_trace_with_planner(shared_ptr<DFANode>& endTraceNo
         if (!retrieved_path) {
 
             // Solve the problem
-            pddlboat::Z3Planner::Options options;
-            options.dump_clauses = false;
-            // options.horizon.max = 4;
-            auto task_planner = make_shared<pddlboat::Z3Planner>(subproblem, options);
+            // pddlboat::Z3Planner::Options options;
+            // options.dump_clauses = false;
+            // // options.horizon.max = 4;
+            // auto task_planner = make_shared<pddlboat::Z3Planner>(subproblem, options);
 
             // auto task_planner = make_shared<pddlboat::FastDownwardPlanner>(subproblem);
 
@@ -426,7 +426,7 @@ void PDDLProblem::realize_dfa_trace_with_planner(shared_ptr<DFANode>& endTraceNo
 
             // auto task_planner = make_shared<pddlboat::SymKPlanner>(subproblem);
 
-            // auto task_planner = make_shared<pddlboat::AStarPlanner>(subproblem);
+            auto task_planner = make_shared<pddlboat::AStarPlanner>(subproblem);
     
             // cout << "Plan:" << endl;
             auto plan = make_shared<pddlboat::Plan>(subproblem);
@@ -705,17 +705,53 @@ pddlboat::ProblemPtr PDDLProblem::create_subproblem(bdd& edge_cond, shared_ptr<P
             // continue;
         }
 
+        size_t token_num = 1;
+        size_t last_valid_token_num = 0;
         // The first part is the name of the predicate
-        string predicate_name = tokens[0];
-        vector<string> bindings(tokens.begin() + 1, tokens.end());
+        string predicate_name = tokens.at(0);
+        // cout << "Printing predicates" << endl;
+        // for (const auto& pred_pair : pddlProblem_->domain->predicates) {
+        //     cout << pred_pair.first << endl;
+        // }
+        // cout << "=====" << endl;
 
         // Find the predicate definition
         auto predicate_it = pddlProblem_->domain->predicates.find(predicate_name);
+        // auto last_valid_predicate_it = pddlProblem_->domain->predicates.end();
+        // if (predicate_it != pddlProblem_->domain->predicates.end()) {
+        //     last_valid_predicate_it = predicate_it;
+        //     last_valid_token_num = token_num;
+        // }
+        // // Needed for rovers
+        // while (token_num < tokens.size()) {
+        //     predicate_name = predicate_name + "_" + tokens.at(token_num);
+        //     predicate_it = pddlProblem_->domain->predicates.find(predicate_name);
+        //     token_num++;
+        //     if (predicate_it != pddlProblem_->domain->predicates.end()) {
+        //         last_valid_predicate_it = predicate_it;
+        //         last_valid_token_num = token_num;
+        //     }
+        // }
+        if (predicate_it == pddlProblem_->domain->predicates.end()) {
+            // Needed for openstacks
+            while (token_num < tokens.size() && predicate_it == pddlProblem_->domain->predicates.end()) {
+                predicate_name = predicate_name + "-" + tokens.at(token_num);
+                predicate_it = pddlProblem_->domain->predicates.find(predicate_name);
+                token_num++;
+            }
+        }
+        // predicate_it = last_valid_predicate_it;
+        // token_num = last_valid_token_num;
+
         if (predicate_it == pddlProblem_->domain->predicates.end()) {
             std::cerr << "Predicate not found: " << predicate_name << std::endl;
             continue;
         }
+
         auto p_predicate = predicate_it->second;
+
+
+        vector<string> bindings(tokens.begin() + token_num, tokens.end());
 
         // Check if including the proposition (or its negation) makes a difference in the XOR result
         if (bdd_restrict(edge_cond, np) == bddfalse) {
@@ -794,7 +830,7 @@ void PDDLProblem::print_bdd(bdd& expr) {
 std::string PDDLProblem::write_solution_to_file() const {
     std::string dir_name = "solutions";
     if (use_planner_) {
-        dir_name += "_with_planner_z3";
+        dir_name += "_with_planner_astar";
     } else {
         dir_name += "_from_scratch";
     }

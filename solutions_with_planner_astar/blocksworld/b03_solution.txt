@@ -40,10 +40,10 @@ Product Path:
 (ontable b5)
 , DFA: 1)
 For 50 runs: 
-Average DFA construction time: 0.107122 seconds
-First DFA construction time: 0.0026715 seconds
-Average DFA construction time (without first): 0.10578 seconds
-Average search time: 3.96184 seconds
-Average total time: 4.06896 seconds
+Average DFA construction time: 0.00248495 seconds
+First DFA construction time: 0.00416383 seconds
+Average DFA construction time (without first): 0.00245069 seconds
+Average search time: 0.00217119 seconds
+Average total time: 0.00465615 seconds
 Average number of expanded nodes: 0
-Average plan length: 149.9
+Average plan length: 2

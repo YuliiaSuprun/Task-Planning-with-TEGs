@@ -66,16 +66,6 @@ int main(int argc, char** argv) {
         }
     }
 
-    // Variables to store total elapsed time and for averaging
-    double totalDFATime = 0;
-    double firstRunDFATime = 0;
-    double DFATimeWithoutFirst = 0;
-    double totalSearchTime = 0;
-
-    size_t totalExpandedNodes = 0;
-    size_t totalPlanLength = 0;
-    string solution_file_path;
-
     string domainFilePath = directoryPath + "/domain.pddl";
 
     for (const auto& entry : fs::directory_iterator(directoryPath)) {
@@ -89,6 +79,16 @@ int main(int argc, char** argv) {
             continue;
         }
         cout << "Solving " << problemFilePath << "..." << endl;
+
+        // Variables to store total elapsed time and for averaging
+        double totalDFATime = 0;
+        double firstRunDFATime = 0;
+        double DFATimeWithoutFirst = 0;
+        double totalSearchTime = 0;
+
+        size_t totalExpandedNodes = 0;
+        size_t totalPlanLength = 0;
+        string solution_file_path;
 
         for (int run = 0; run < numRuns; ++run) {
             // Instantiate PDDLDomain and PDDLProblem.
