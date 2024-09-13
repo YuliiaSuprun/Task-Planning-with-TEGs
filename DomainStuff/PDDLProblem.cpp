@@ -7,10 +7,10 @@
 #include <fstream>
 #include <filesystem>  // Requires C++17
 
-PDDLProblem::PDDLProblem(const string& problemFile, shared_ptr<PDDLDomain> domainPtr, bool cache, bool feedback, bool use_landmarks, bool hamming_dist, bool use_planner, bool save_dfa) 
-: domain_(domainPtr), cache_(cache),
+PDDLProblem::PDDLProblem(const string& problemFile, shared_ptr<PDDLDomain> domainPtr, const string& planner_type, bool cache, bool feedback, bool use_landmarks, bool hamming_dist, bool save_dfa) 
+: domain_(domainPtr), planner_type_(planner_type), cache_(cache),
 feedback_(feedback), use_landmarks_(use_landmarks),
-hamming_dist_(hamming_dist), use_planner_(use_planner), save_dfa_(save_dfa), bdd_dict_(make_shared<spot::bdd_dict>()), num_expanded_nodes_(0) {
+hamming_dist_(hamming_dist), save_dfa_(save_dfa), bdd_dict_(make_shared<spot::bdd_dict>()), num_expanded_nodes_(0), num_of_backtracks_(0) {
 
     // Extracting the problem name
     extract_names(problemFile);
@@ -64,6 +64,7 @@ hamming_dist_(hamming_dist), use_planner_(use_planner), save_dfa_(save_dfa), bdd
     domain_manager_ = make_shared<DomainManager>(bdd_dict_, domain_, get_pred_mapping());
 
     product_manager_ = make_shared<ProductManager>(domain_manager_, dfa_manager_);
+
 }
 
 PDDLProblem::~PDDLProblem() {
@@ -127,7 +128,7 @@ vector<ProductState> PDDLProblem::solve() {
 
 void PDDLProblem::realize_dfa_trace(shared_ptr<DFANode>& endTraceNode) {
 
-    if (use_planner_) {
+    if (planner_type_ != "manual") {
         // 1. Create an instanse of the subproblem 
         // 2. Call the off-the-shelf planner
         realize_dfa_trace_with_planner(endTraceNode);
@@ -237,6 +238,7 @@ void PDDLProblem::realize_dfa_trace_manually(shared_ptr<DFANode>& endTraceNode) 
                 if (curr_num_wrong_dfa_trans > max_num_wrong_dfa_trans) {
                     // Give up on this trace!
                     dfa_manager_->give_up_on_path(dfa_nodes.back(), dfa_nodes.at(currentRegionIndex+1));
+                    num_of_backtracks_++;
                     cout << "Giving up on transition: " << curr_dfa_state << "=>" << dfa_trace.at(currentRegionIndex+1) << endl;
                     return;
                 }
@@ -388,6 +390,8 @@ void PDDLProblem::realize_dfa_trace_with_planner(shared_ptr<DFANode>& endTraceNo
         }
 
         auto& subproblem = regionSubproblems[curr_dfa_state];
+        std::cout << "Subproblem to be solved: " << std::endl;
+        subproblem->goal->toPDDL(std::cout) << std::endl;
 
         auto curr_domain_state = make_shared<PDDLState>(subproblem->start);
         ProductState curr_prod_state(curr_domain_state, curr_dfa_state);
@@ -413,30 +417,38 @@ void PDDLProblem::realize_dfa_trace_with_planner(shared_ptr<DFANode>& endTraceNo
         }
 
         if (!retrieved_path) {
+            // Instantiate the planner based on the type
+            shared_ptr<pddlboat::Planner> task_planner;
 
-            // Solve the problem
-            // pddlboat::Z3Planner::Options options;
-            // options.dump_clauses = false;
-            // // options.horizon.max = 4;
-            // auto task_planner = make_shared<pddlboat::Z3Planner>(subproblem, options);
-
-            // auto task_planner = make_shared<pddlboat::FastDownwardPlanner>(subproblem);
-
-            // auto task_planner = make_shared<pddlboat::FastForwardPlanner>(subproblem);
-
-            // auto task_planner = make_shared<pddlboat::SymKPlanner>(subproblem);
-
-            auto task_planner = make_shared<pddlboat::AStarPlanner>(subproblem);
+            if (planner_type_ == "z3") {
+                pddlboat::Z3Planner::Options options;
+                options.dump_clauses = false;
+                task_planner = make_shared<pddlboat::Z3Planner>(subproblem, options);
+            } else if (planner_type_ == "fd") {
+                pddlboat::FastDownwardPlanner::Options options;
+                options.search = pddlboat::FastDownwardPlanner::LAZYGREEDY;  // LAZYGREEDY, FDAT, LAMA
+                task_planner = make_shared<pddlboat::FastDownwardPlanner>(subproblem, options);
+            } else if (planner_type_ == "ff") {
+                task_planner = make_shared<pddlboat::FastForwardPlanner>(subproblem);
+            } else if (planner_type_ == "symk") {
+                task_planner = make_shared<pddlboat::SymKPlanner>(subproblem);
+            } else if (planner_type_ == "astar") {
+                task_planner = make_shared<pddlboat::AStarPlanner>(subproblem);
+            } else {
+                cerr << "Unknown planner type: " << planner_type_ << endl;
+                exit(EXIT_FAILURE);
+            }
     
             // cout << "Plan:" << endl;
             auto plan = make_shared<pddlboat::Plan>(subproblem);
             if (!task_planner->solve(*plan))
             {
                 cerr << "Failed to solve!" << endl;
+                // exit(1);
                 regionSubproblems.erase(curr_dfa_state);
                 continue;
             } else {
-                // cout << *plan << endl;
+                cout << "Solved the subproblem: " << *plan << endl;
             }
 
             // Get a trace of states from the plan.
@@ -448,7 +460,7 @@ void PDDLProblem::realize_dfa_trace_with_planner(shared_ptr<DFANode>& endTraceNo
                 regionSubproblems.clear();
                 continue;
             }
-
+            
             // Handle the last domain state separately
             last_domain_state = make_shared<PDDLState>(state_trace.back());
             next_prod_state = ProductState(last_domain_state, next_dfa_state);
@@ -675,12 +687,51 @@ size_t PDDLProblem::get_num_expanded_nodes() const {
     return num_expanded_nodes_;
 }
 
-pddlboat::ProblemPtr PDDLProblem::create_subproblem(bdd& edge_cond, shared_ptr<PDDLState> start_state) {
-    // cout << "Edge_condition: " << edge_cond << endl;
+size_t PDDLProblem::get_num_of_backtracks() const {
+    return num_of_backtracks_;
+}
 
-    pddlboat::ProblemPtr subproblem = make_shared<pddlboat::Problem>(*pddlProblem_);
-    // Vector to collect bound predicates
-    vector<pddlboat::ExpressionPtr> bound_predicates;
+pddlboat::ProblemPtr PDDLProblem::create_subproblem(bdd& edge_cond, shared_ptr<PDDLState> start_state) {
+    // Collect bound predicates
+    auto bound_predicates = collect_bound_predicates(edge_cond);
+
+    // Separate constraints and goals based on start state
+    vector<pddlboat::ExpressionPtr> constraints;
+    vector<pddlboat::ExpressionPtr> goals;
+    split_constraints_and_goals(bound_predicates, start_state->getPddlboatStatePtr(), constraints, goals);
+
+    // Step 1: create a domain with constraints for the subproblem.
+    // Create a derived predicate for constraints that must always hold true.
+    auto constraints_expr = pddlboat::makeAnd(constraints);
+
+    // Update a domain by adding constraints
+    auto updated_domain = get_domain_with_constraints(constraints_expr, domain_->getPddlboatDomainPtr());
+
+    // Step 2: Use the new domain to create a new subproblem
+    auto subproblem = make_shared<pddlboat::Problem>(pddlProblem_->name, updated_domain);
+
+    // Step 3: Set the problem objects.
+    subproblem->objects = pddlProblem_->objects;
+
+    // Step 4: Set the start state
+    subproblem->start = start_state->getPddlboatStatePtr();
+
+    // Step 5: Create a new goal with the unsatisfied predicates
+    subproblem->goal = pddlboat::makeAnd(goals);
+
+    auto domain = subproblem->domain;
+    cout << "Subproblem's domain is: " << endl;
+    domain->toPDDL(std::cout) << std::endl;
+
+    cout << "Subgoal is: " << endl;
+    subproblem->goal->toPDDL(std::cout) << std::endl;
+
+    return subproblem;
+}
+
+map<pddlboat::PredicatePtr, bool> PDDLProblem::collect_bound_predicates(bdd& edge_cond) {
+    // Vector to collect bound predicates (as a map from PredicatePtrs to a boolean)
+    map<pddlboat::PredicatePtr, bool> bound_predicates;
 
     for (size_t i = 0; i < bdd_dict_->var_map.size() + 1; ++i) {
         bdd p = bdd_ithvar(i);  // Represents the atomic proposition 'p'
@@ -706,7 +757,7 @@ pddlboat::ProblemPtr PDDLProblem::create_subproblem(bdd& edge_cond, shared_ptr<P
         }
 
         size_t token_num = 1;
-        size_t last_valid_token_num = 0;
+        // size_t last_valid_token_num = 0;
         // The first part is the name of the predicate
         string predicate_name = tokens.at(0);
         // cout << "Printing predicates" << endl;
@@ -750,58 +801,119 @@ pddlboat::ProblemPtr PDDLProblem::create_subproblem(bdd& edge_cond, shared_ptr<P
 
         auto p_predicate = predicate_it->second;
 
-
         vector<string> bindings(tokens.begin() + token_num, tokens.end());
+        // Bind the predicate
+        auto bound_pred = p_predicate->bind(bindings, pddlProblem_);
 
         // Check if including the proposition (or its negation) makes a difference in the XOR result
         if (bdd_restrict(edge_cond, np) == bddfalse) {
             // Condition contains positive p
             // std::cout << "Found a positive ap: " << ap_name << std::endl;
-
-            // Bind the predicate
-            auto bound_pred = p_predicate->bind(bindings, *subproblem);
-            bound_predicates.push_back(bound_pred);
-
+            bound_predicates[bound_pred] = true;
         } else if (bdd_restrict(edge_cond, p) == bddfalse) {
-            // Condition contains negative p: an obstacle
+            // Condition contains negative p
             // std::cout << "Found a negative ap: " << ap_name << std::endl;
-
-            // Bind the predicate and then negate it
-            auto bound_pred = p_predicate->bind(bindings, *subproblem);
-            auto negated_pred = pddlboat::makeNot(bound_pred);
-            bound_predicates.push_back(negated_pred);
+            // Negate it
+            bound_predicates[bound_pred] = false;
         }
     }
-
-    // Finally, given a list of propositions (positive and negative), you should create a new goal
-    subproblem->goal = pddlboat::makeAnd(bound_predicates);
-
-    // auto domain = pddlProblem_->domain;
-    // cout << "Domain: " << endl;
-    // domain->toPDDL(std::cout) << std::endl;
-    // cout << "Initial goal is: " << endl;
-    // start_subproblem->goal->toPDDL(std::cout) << std::endl;
-    // cout << "Printing predicates..." << endl;
-    // for (const auto& pred_pair : domain->predicates) {
-    //     auto name = pred_pair.first;
-    //     auto pred = pred_pair.second;
-    //     cout << "Name: " << name << endl;
-    //     pred->toPDDL(std::cout) << std::endl;
-    // }
-    // auto p_on = pddlProblem_->domain->predicates.at("on");
-    // // Bind the predicates 
-    // auto on_d_c = p_on->bind({"b1", "b2"}, *subproblem);
-    // auto on_c_b = p_on->bind({"b2", "b3"}, *subproblem);
-    // // Set the goal
-    // subproblem->goal = pddlboat::makeAnd({on_d_c, on_c_b});
-
-    // cout << "Subgoal is: " << endl;
-    // subproblem->goal->toPDDL(std::cout) << std::endl;
-
-    subproblem->start = start_state->getPddlboatStatePtr();
-
-    return subproblem;
+    return bound_predicates;
 }
+
+void PDDLProblem::split_constraints_and_goals(
+    const map<pddlboat::PredicatePtr, bool>& bound_predicates,
+    const pddlboat::StatePtr& start_state,
+    vector<pddlboat::ExpressionPtr>& constraints,
+    vector<pddlboat::ExpressionPtr>& goals) {
+    for (const auto& pred_pair : bound_predicates) {
+        // Get the predicate and its associated boolean value 
+        // (true for positive, false for negated)
+        auto predicate = pred_pair.first;
+        bool is_positive = pred_pair.second;
+
+        // Create a literal according to its sign.
+        pddlboat::ExpressionPtr signed_predicate = predicate; 
+        // Negate the predicate if needed.
+        if (!is_positive) {
+            signed_predicate = pddlboat::makeNot(predicate);
+        }
+
+        // Check if the predicate (or its negation) is true in the start state.
+        if (predicateHoldsInState(start_state, predicate) == is_positive) {
+            std::cout << "Predicate is satisfied in the start_state: ";
+            signed_predicate->toPDDL(std::cout) << std::endl;
+            // The start state satisfies this predicate, so it's a constraint.
+            constraints.push_back(signed_predicate);
+        } else {
+            std::cout << "Predicate is NOT satisfied in the start_state: ";
+            signed_predicate->toPDDL(std::cout) << std::endl;
+            // The start state does not satisfy this predicate, so it's a goal.
+            goals.push_back(signed_predicate);
+        }
+    }
+}
+
+pddlboat::DomainPtr PDDLProblem::get_domain_with_constraints(pddlboat::ExpressionPtr constraints_expr, const pddlboat::DomainPtr& original_domain) {
+    // Create a deep copy of the original domain
+    pddlboat::DomainPtr domain = make_shared<pddlboat::Domain>(*original_domain);
+
+    string constraint_predicate_name = "constraints";
+
+    // Check if the derived predicate already exists
+    if (domain->isDerivedPredicate(constraint_predicate_name)) {
+        std::cerr << "ERROR: Derived predicate 'constraints' already exists in the domain." << std::endl;
+        return original_domain;
+    }
+
+    // Add the derived predicate to the domain
+    // No variables for the constraints predicate
+    pddlboat::VariableList empty_vars;
+    auto derived_predicate_definition = pddlboat::makeDerivedPred(constraint_predicate_name, empty_vars, constraints_expr);
+
+    domain->addDerivedPredicate(derived_predicate_definition);
+
+    cout << "Added derived predicate: " << constraint_predicate_name << endl;
+
+    // Clear all actions in the new domain.
+    domain->actions.clear();
+
+    // Update all action preconditions to include (constraints)
+    for (const auto& action_pair : original_domain->actions) {
+        auto original_action = action_pair.second;
+
+        // Bind the 'constraints' predicate for precondition use
+        auto constraint_predicate = derived_predicate_definition->bind();
+
+        // Create a new precondition.
+        auto updated_precondition = pddlboat::makeAnd({original_action->precondition, constraint_predicate});
+
+        // Create a new action with the updated precondition
+        auto new_action = pddlboat::makeAction(
+            original_action->name, 
+            original_action->parameters, 
+            updated_precondition, 
+            original_action->effect
+        );
+
+        // Add the new action to the copied domain
+        domain->addAction(new_action);
+    }
+    return domain;
+}
+
+bool PDDLProblem::predicateHoldsInState(const pddlboat::StatePtr& state, const pddlboat::PredicatePtr& predicate) {
+    // Retrieve the predicate name and arguments from the predicate object.
+    string predicate_name = predicate->name();
+
+    // Get the arguments (bindings) of the predicate
+    vector<string> args;
+    for (const auto &binding : predicate->bindings) {
+        args.push_back(binding.name); 
+    }
+    // Check if the predicate is true in the state
+    return state->isTrue(predicate_name, args);
+}
+
 
 void PDDLProblem::print_bdd(bdd& expr) {
     cout << "Printing bdd = " << expr << endl;
@@ -829,11 +941,7 @@ void PDDLProblem::print_bdd(bdd& expr) {
 
 std::string PDDLProblem::write_solution_to_file() const {
     std::string dir_name = "solutions";
-    if (use_planner_) {
-        dir_name += "_with_planner_astar";
-    } else {
-        dir_name += "_from_scratch";
-    }
+    dir_name += "_with_" + planner_type_;
     // Create the solutions directory if it doesn't exist
     std::filesystem::create_directory(dir_name);
 

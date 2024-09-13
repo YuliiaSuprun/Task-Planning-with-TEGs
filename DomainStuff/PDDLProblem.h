@@ -32,7 +32,7 @@ using namespace std;
 
 class PDDLProblem {
 public:
-    PDDLProblem(const string& problemFile, shared_ptr<PDDLDomain> domainPtr, bool cache=false, bool feedback=false, bool use_landmarks=false, bool hamming_dist=false, bool use_planner=false, bool save_dfa=false);
+    PDDLProblem(const string& problemFile, shared_ptr<PDDLDomain> domainPtr, const string& planner_type, bool cache=false, bool feedback=false, bool use_landmarks=false, bool hamming_dist=false, bool save_dfa=false);
     ~PDDLProblem();
 
     // Method to get the wrapped pddlboat::Problem
@@ -45,6 +45,7 @@ public:
     double get_dfa_construction_time() const;
     size_t get_num_expanded_nodes() const;
     size_t get_num_generated_nodes() const;
+    size_t get_num_of_backtracks() const;
     map<string, pair<string, vector<string>>> get_pred_mapping() const;
 
     void print_product_path() const;
@@ -61,19 +62,28 @@ private:
     void realize_dfa_trace_manually(shared_ptr<DFANode>& endTraceNode);
     void realize_dfa_trace_with_planner(shared_ptr<DFANode>& endTraceNode);
     pddlboat::ProblemPtr create_subproblem(bdd& edge_cond, shared_ptr<PDDLState> start_state);
+    map<pddlboat::PredicatePtr, bool> collect_bound_predicates(bdd& edge_cond);
+    void split_constraints_and_goals(
+    const map<pddlboat::PredicatePtr, bool>& bound_predicates,
+    const pddlboat::StatePtr& start_state,
+    vector<pddlboat::ExpressionPtr>& constraints,
+    vector<pddlboat::ExpressionPtr>& goals);
+    pddlboat::DomainPtr get_domain_with_constraints(pddlboat::ExpressionPtr constraints_expr, const pddlboat::DomainPtr& original_domain);
+    bool predicateHoldsInState(const pddlboat::StatePtr& state, const pddlboat::PredicatePtr& predicate);
     void print_bdd(bdd& expr);
 
     vector<ProductState> construct_path(const map<ProductState, vector<ProductState>>& parent_map, ProductState target_state, bool cached=false, size_t start_dfa_state=0);
 
     pddlboat::ProblemPtr pddlProblem_;
     LTLFormula formula_;
-    shared_ptr<Domain> domain_;
+    shared_ptr<PDDLDomain> domain_;
     shared_ptr<PDDLState> start_domain_state_;
+
+    string planner_type_;
     bool cache_;
     bool feedback_;
     bool use_landmarks_;
     bool hamming_dist_;
-    bool use_planner_;
     bool save_dfa_;
     
     // DFA corresponding to LTL formula.
@@ -93,6 +103,7 @@ private:
     string domain_name_;
     chrono::duration<double> dfa_construction_time_;
     size_t num_expanded_nodes_;
+    size_t num_of_backtracks_;
 };
 
 #endif // PDDL_PROBLEM_H
