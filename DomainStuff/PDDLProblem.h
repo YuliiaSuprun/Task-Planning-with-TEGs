@@ -20,6 +20,7 @@
 #include <unordered_map>
 #include <string>
 #include <set>
+#include <limits>
 
 #include <pddlboat/solver/planner.hpp>
 #include <pddlboat/solver/fdplanner.hpp>
@@ -32,7 +33,21 @@ using namespace std;
 
 class PDDLProblem {
 public:
-    PDDLProblem(const string& problemFile, shared_ptr<PDDLDomain> domainPtr, const string& planner_type, const string& search_type={}, const string& name_connector="-", bool cache=false, bool feedback=false, bool use_landmarks=false, bool hamming_dist=false, bool save_dfa=false, size_t subproblem_timeout=60000);
+    PDDLProblem(
+    const string& problemFile,
+    shared_ptr<PDDLDomain> domainPtr,
+    const string& planner_type,
+    const string& search_type = {},
+    const string& name_connector = "-",
+    bool cache = false,
+    bool feedback = false,
+    bool use_landmarks = false,
+    bool hamming_dist = false,
+    bool save_dfa = false,
+    size_t subproblem_timeout = 60000,
+    int backtracks_limit = std::numeric_limits<int>::max(),
+    size_t max_num_wrong_dfa_trans = 300
+);
     ~PDDLProblem();
 
     // Method to get the wrapped pddlboat::Problem
@@ -58,9 +73,9 @@ private:
     void extract_names(const string& problemFile);
     void parseProblem(const string& problemFile, shared_ptr<PDDLDomain> domainPtr);
     void save_paths();
-    void realize_dfa_trace(shared_ptr<DFANode>& endTraceNode);
-    void realize_dfa_trace_manually(shared_ptr<DFANode>& endTraceNode);
-    void realize_dfa_trace_with_planner(shared_ptr<DFANode>& endTraceNode);
+    void realize_dfa_trace(shared_ptr<DFANode>& end_trace_node);
+    void realize_dfa_trace_manually(shared_ptr<DFANode>& end_trace_node);
+    void realize_dfa_trace_with_planner(shared_ptr<DFANode>& end_trace_node);
     pddlboat::ProblemPtr create_subproblem(bdd& edge_cond, shared_ptr<PDDLState> start_state);
     map<pddlboat::PredicatePtr, bool> collect_bound_predicates(bdd& edge_cond);
     void split_constraints_and_goals(
@@ -73,6 +88,13 @@ private:
     void print_bdd(bdd& expr);
 
     vector<ProductState> construct_path(const map<ProductState, vector<ProductState>>& parent_map, ProductState target_state, bool cached=false, size_t start_dfa_state=0);
+    void enqueue_product_state(map<size_t, priority_queue<pair<int, ProductState>, vector<pair<int, ProductState>>, greater<pair<int, ProductState>>>>& regionQueues, 
+    const ProductState& state, int heuristic_cost, size_t dfa_state);
+    bool validate_dfa_trace(const vector<size_t>& dfa_trace);
+    int compute_heuristics(const ProductState& state, const map<size_t, DomainStateSet>& landmarks, size_t dfa_state);
+    bool handle_wrong_transitions(size_t& curr_num_wrong_dfa_trans,
+    shared_ptr<DFANode>& current_dfa_node, shared_ptr<DFANode>& next_dfa_node);
+    shared_ptr<pddlboat::Planner> get_task_planner(const pddlboat::ProblemPtr& subproblem) const;
 
     pddlboat::ProblemPtr pddlProblem_;
     LTLFormula formula_;
@@ -105,8 +127,10 @@ private:
     string domain_name_;
     chrono::duration<double> dfa_construction_time_;
     size_t num_expanded_nodes_;
-    size_t num_of_backtracks_;
     size_t subproblem_timeout_;
+    int num_of_backtracks_;
+    int backtracks_limit_;
+    size_t max_num_wrong_dfa_trans_;
 };
 
 #endif // PDDL_PROBLEM_H

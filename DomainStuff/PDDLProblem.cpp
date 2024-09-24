@@ -7,10 +7,10 @@
 #include <fstream>
 #include <filesystem>  // Requires C++17
 
-PDDLProblem::PDDLProblem(const string& problemFile, shared_ptr<PDDLDomain> domainPtr, const string& planner_type, const string& search_type, const string& name_connector, bool cache, bool feedback, bool use_landmarks, bool hamming_dist, bool save_dfa, size_t subproblem_timeout) 
+PDDLProblem::PDDLProblem(const string& problemFile, shared_ptr<PDDLDomain> domainPtr, const string& planner_type, const string& search_type, const string& name_connector, bool cache, bool feedback, bool use_landmarks, bool hamming_dist, bool save_dfa, size_t subproblem_timeout, int backtracks_limit, size_t max_num_wrong_dfa_trans) 
 : domain_(domainPtr), planner_type_(planner_type), search_type_(search_type),
 name_connector_(name_connector), cache_(cache), feedback_(feedback),
-use_landmarks_(use_landmarks), hamming_dist_(hamming_dist), save_dfa_(save_dfa), bdd_dict_(make_shared<spot::bdd_dict>()), num_expanded_nodes_(0), num_of_backtracks_(0), subproblem_timeout_(subproblem_timeout) {
+use_landmarks_(use_landmarks), hamming_dist_(hamming_dist), save_dfa_(save_dfa), bdd_dict_(make_shared<spot::bdd_dict>()), num_expanded_nodes_(0), subproblem_timeout_(subproblem_timeout), backtracks_limit_(backtracks_limit), max_num_wrong_dfa_trans_(max_num_wrong_dfa_trans) {
 
     // Extracting the problem name
     extract_names(problemFile);
@@ -105,64 +105,50 @@ vector<ProductState> PDDLProblem::solve() {
         return {};
     }
 
-    // Initialize all paths from the root = the start dfa state.
+    // Initializethe priority queue for the DFA paths from the start DFA state.
     dfa_manager_->initialize_node_priority_queue();
+    num_of_backtracks_ = -1;
 
-    int max_num_iters = 50; // Depends on the nature of the problem.
-    int curr_iter = 0;
-
-    while (product_path_.empty() && curr_iter < max_num_iters) {
-        // cout << "=== Iteration " << curr_iter++ << " ===" << endl;
-        // domain_manager_->print_ap_mapping();
-        // Pick a "likely" DFA trace that ends in the acceptance state.
+    // Backtracking loop to find a valid product path.
+    while (product_path_.empty() && num_of_backtracks_ < backtracks_limit_) {
         num_of_backtracks_++;
-        auto endTraceNode = dfa_manager_->generate_dfa_path();
-
-        if (!endTraceNode) {
-            // No more accepted DFA traces were found.
-            // cout << "endTraceNode is null" << endl;
+        // Generate a likely DFA trace that leads to an acceptance state.
+        auto end_trace_node = dfa_manager_->generate_dfa_path();
+        // If no more DFA traces are available, exit the loop.
+        if (!end_trace_node) {
             break;
         }
 
-        // Attempt to realize this trace in the task domain.
-        realize_dfa_trace(endTraceNode);
+        // Attempt to realize the current DFA trace in the task domain.
+        realize_dfa_trace(end_trace_node);
     }
-    // The last backtrack didn't happen.
-    num_of_backtracks_--;
+    // Return the product path, or an empty vector if no solution was found.
     return product_path_;
 }
 
-void PDDLProblem::realize_dfa_trace(shared_ptr<DFANode>& endTraceNode) {
+void PDDLProblem::realize_dfa_trace(shared_ptr<DFANode>& end_trace_node) {
 
     if (planner_type_ != "manual") {
         // 1. Create an instanse of the subproblem 
         // 2. Call the off-the-shelf planner
-        realize_dfa_trace_with_planner(endTraceNode);
+        realize_dfa_trace_with_planner(end_trace_node);
     } else {
-        realize_dfa_trace_manually(endTraceNode);
+        realize_dfa_trace_manually(end_trace_node);
     }
 }
 
-void PDDLProblem::realize_dfa_trace_manually(shared_ptr<DFANode>& endTraceNode) {
+void PDDLProblem::realize_dfa_trace_manually(shared_ptr<DFANode>& end_trace_node) {
 
-    auto dfa_trace = endTraceNode->getPathFromRoot();
+    auto dfa_trace = end_trace_node->getPathFromRoot();
+    auto dfa_nodes = end_trace_node->getNodePathFromRoot();
 
-    auto dfa_nodes = endTraceNode->getNodePathFromRoot();
-
-    if (dfa_trace.empty()) {
-        cerr << "ERROR: the DFA trace is empty!" << endl;
-        return;
-    } else if (dfa_trace.size() == 1) {
-        cerr << "ERROR: the DFA trace is of size 1!" << endl;
-        return;
-    }
+    if (!validate_dfa_trace(dfa_trace)) return;
 
     size_t dfa_start_state = dfa_trace.front();
     ProductState start_state(start_domain_state_, dfa_start_state);
 
     size_t currentRegionIndex = 0;
     size_t maxRegionIndexReached = 0;
-    size_t max_num_wrong_dfa_trans = 300;
 
     set<ProductState> visited;
     visited.insert(start_state);
@@ -170,32 +156,27 @@ void PDDLProblem::realize_dfa_trace_manually(shared_ptr<DFANode>& endTraceNode) 
     // Initialize a map of priority queues 
     // (one queue for each DFA state in the trace)
     map<size_t, priority_queue<pair<int, ProductState>, vector<pair<int, ProductState>>, greater<pair<int, ProductState>>>> regionQueues;
+    map<ProductState, vector<ProductState>> parent_map;
+    map<size_t, DomainStateSet> landmarks; 
 
     int curr_state_heuristic = 0;
-
-    // We need this for computing heuristics.
-    map<size_t, DomainStateSet> landmarks;
-
     if (use_landmarks_) {
         auto next_dfa_edge_condition = dfa_nodes.at(1)->getParentEdgeCondition();
         landmarks[dfa_start_state] = product_manager_->sample_landmarks(next_dfa_edge_condition, start_domain_state_);
-
-        curr_state_heuristic = start_state.compute_heuristic_cost(landmarks[dfa_start_state]);
+        curr_state_heuristic = compute_heuristics(start_state, landmarks, dfa_start_state);
     }
 
-    regionQueues[dfa_start_state].push(make_pair(curr_state_heuristic, start_state));
-
-    map<ProductState, vector<ProductState>> parent_map;
+    enqueue_product_state(regionQueues, start_state, curr_state_heuristic, dfa_start_state);
 
     size_t curr_num_wrong_dfa_trans = 0;
 
     while (!regionQueues[dfa_start_state].empty()) {
-        size_t curr_dfa_state = dfa_trace.at(currentRegionIndex);
-        
+        size_t curr_dfa_state = dfa_trace.at(currentRegionIndex);    
         auto& queue = regionQueues[curr_dfa_state];
 
         if (queue.empty()) {
             // Backtrack if necessary
+            assert(currentRegionIndex > 0 && "currentRegionIndex must be positive");
             currentRegionIndex--;
             continue;
         }
@@ -205,26 +186,21 @@ void PDDLProblem::realize_dfa_trace_manually(shared_ptr<DFANode>& endTraceNode) 
         // Queue is not empty!
         auto current_state_pair = queue.top();
         ProductState current_state = current_state_pair.second;
-        // cout << "Popped the state " << current_state << " with score " << current_state_pair.first << endl;
         queue.pop();
 
         // Check if state was expanded?
         // If not, then generate successors for this state!
         if (product_manager_->state_not_expanded(current_state)) {
-            num_expanded_nodes_++;
             // Expand the state.
+            num_expanded_nodes_++;
             product_manager_->generate_successors(current_state);
         }
 
         for (auto& transition : product_manager_->get_transitions(current_state)) {
             // Get the product state where this transition leads. 
             ProductState next_state = transition.out_state();
-
             // Check if it was already explored.
-            if (visited.find(next_state) != visited.end()) {
-                // Skip this state.
-                continue;
-            }
+            if (visited.find(next_state) != visited.end()) continue;
 
             // Get the next dfa state.
             size_t next_dfa_state = next_state.get_dfa_state();
@@ -232,32 +208,22 @@ void PDDLProblem::realize_dfa_trace_manually(shared_ptr<DFANode>& endTraceNode) 
             // We are interested only in the transitions that either stay in the same dfa state or lead to the next dfa state in the trace.
             if (next_dfa_state != dfa_trace.at(currentRegionIndex) &&
             next_dfa_state != dfa_trace.at(currentRegionIndex + 1)) {
-                // cout << "SKIP: an illegal DFA transition: " << curr_dfa_state << "=>" << next_dfa_state << endl;
                 // Skip states that lead to any other dfa states.
                 // Update cost for this transition to 0.
-                if (feedback_) {
+                if (feedback_ && dfa_manager_->dfa_transition_cost(curr_dfa_state, next_dfa_state) != SUCCESS_COST) {
                     dfa_manager_->update_dfa_transition_cost(curr_dfa_state, next_dfa_state, SUCCESS_COST);
+                    // Cache this for future reuse.
+                    // TODO: implement caching!
+                    // if (cache_ && !transition.isCached()) {
+                    //     vector<ProductState> path_to_cache_reversed = construct_path(parent_map, next_state, true, curr_dfa_state);
+                    //     // Now we create a transition and add it to a product graph.
+                    //     // Serves as a "skip-connection".
+                    //     product_manager_->cache_path(path_to_cache_reversed, transition.dfa_edge_condition());
+                    // }
                 }
-
-                curr_num_wrong_dfa_trans++;
-                // cout << "curr_num_wrong_dfa_trans = " << curr_num_wrong_dfa_trans << endl;
-                if (curr_num_wrong_dfa_trans > max_num_wrong_dfa_trans) {
-                    // Give up on this trace!
-                    dfa_manager_->give_up_on_path(dfa_nodes.back(), dfa_nodes.at(currentRegionIndex+1));
-                    // cout << "Giving up on transition: " << curr_dfa_state << "=>" << dfa_trace.at(currentRegionIndex+1) << endl;
+                if (!handle_wrong_transitions(curr_num_wrong_dfa_trans, dfa_nodes.back(), dfa_nodes.at(currentRegionIndex + 1))) {
                     return;
                 }
-                // if (feedback_ && dfa_manager_->dfa_transition_cost(curr_dfa_state, next_dfa_state) != SUCCESS_COST) {
-                //     dfa_manager_->update_dfa_transition_cost(curr_dfa_state, next_dfa_state, SUCCESS_COST);
-                //     // Cache this for future reuse.
-                //     if (cache_ && !transition.isCached()) {
-                //         // cout << "Caching it for future! " << endl;
-                //         vector<ProductState> path_to_cache_reversed = construct_path(parent_map, next_state, true, curr_dfa_state);
-                //         // Now we create a transition and add it to a product graph.
-                //         // Serves as a "skip-connection".
-                //         product_manager_->cache_path(path_to_cache_reversed, transition.dfa_edge_condition());
-                //     }
-                // }
                 continue;
             }
 
@@ -307,28 +273,23 @@ void PDDLProblem::realize_dfa_trace_manually(shared_ptr<DFANode>& endTraceNode) 
                 // 2) Define heuristic as a distance to the closest sampled point.
                 // 3) Not an admissible heuristic but we don't care about optimality of the path, so it's fine.
 
+                // TODO: debug landmarks approach later.
                 if (use_landmarks_ && landmarks.count(next_dfa_state) == 0) {
                     auto next_dfa_edge_condition = dfa_nodes.at(currentRegionIndex + 1)->getParentEdgeCondition();
                     landmarks[next_dfa_state] = product_manager_->sample_landmarks(next_dfa_edge_condition, next_state.get_domain_state());
-                    if (landmarks[next_dfa_state].empty()) {
-                        dfa_manager_->update_dfa_transition_cost(dfa_nodes.at(maxRegionIndexReached + 1), FAILURE_COST);
-                        return;
-                    }
                 }
-
             } 
             // Compute the heuristic score for this state and push it into the queue.
-            int curr_state_cost = current_state_pair.first;
-            // Default cost of an edge is 1.
-            int next_state_cost = curr_state_cost + DEFAULT_COST; 
+            int next_state_cost = current_state_pair.first + DEFAULT_COST; 
             if (use_landmarks_) {
-                int curr_heuristic_cost = current_state.compute_heuristic_cost(landmarks[curr_dfa_state]);
-                int next_heuristic_cost = next_state.compute_heuristic_cost(landmarks[next_dfa_state]);
+                int curr_heuristic_cost = compute_heuristics(current_state, landmarks, curr_dfa_state);
+                int next_heuristic_cost = compute_heuristics(next_state, landmarks, next_dfa_state);
                 next_state_cost += (next_heuristic_cost - curr_heuristic_cost);
             }
 
             // Push this new product state onto the corresponding queue.
-            regionQueues[next_dfa_state].push(make_pair(next_state_cost, next_state));
+            enqueue_product_state(regionQueues, next_state, next_state_cost, next_dfa_state);
+
             // This state has been visited now!
             visited.insert(next_state);
         }
@@ -338,18 +299,12 @@ void PDDLProblem::realize_dfa_trace_manually(shared_ptr<DFANode>& endTraceNode) 
     dfa_manager_->update_dfa_transition_cost(dfa_nodes.at(maxRegionIndexReached + 1), FAILURE_COST);
 }
 
-void PDDLProblem::realize_dfa_trace_with_planner(shared_ptr<DFANode>& endTraceNode) {
+void PDDLProblem::realize_dfa_trace_with_planner(shared_ptr<DFANode>& end_trace_node) {
 
-    auto dfa_trace = endTraceNode->getPathFromRoot();
-    auto dfa_nodes = endTraceNode->getNodePathFromRoot();
+    auto dfa_trace = end_trace_node->getPathFromRoot();
+    auto dfa_nodes = end_trace_node->getNodePathFromRoot();
 
-    if (dfa_trace.empty()) {
-        cerr << "ERROR: the DFA trace is empty!" << endl;
-        return;
-    } else if (dfa_trace.size() == 1) {
-        cerr << "ERROR: the DFA trace is of size 1!" << endl;
-        return;
-    }
+    if (!validate_dfa_trace(dfa_trace)) return;
 
     size_t currentRegionIndex = 0;
     size_t maxRegionIndexReached = 0;
@@ -363,9 +318,6 @@ void PDDLProblem::realize_dfa_trace_with_planner(shared_ptr<DFANode>& endTraceNo
     map<ProductState, vector<ProductState>> parent_map;
 
     size_t dfa_start_state = dfa_trace.front();
-    size_t curr_dfa_state = dfa_trace.at(currentRegionIndex);
-    size_t next_dfa_state = dfa_trace.at(currentRegionIndex + 1);
-
     ProductState start_state(start_domain_state_, dfa_start_state);
     visited.insert(start_state);
 
@@ -374,13 +326,12 @@ void PDDLProblem::realize_dfa_trace_with_planner(shared_ptr<DFANode>& endTraceNo
     regionSubproblems.insert({dfa_start_state, start_subproblem});
     
     while (!regionSubproblems.empty()) {
-        curr_dfa_state = dfa_trace.at(currentRegionIndex);
-        next_dfa_state = dfa_trace.at(currentRegionIndex + 1);
+        size_t curr_dfa_state = dfa_trace.at(currentRegionIndex);
+        size_t next_dfa_state = dfa_trace.at(currentRegionIndex + 1);
         // cout << "Trying to realize a transition: " << curr_dfa_state << "=>" << next_dfa_state << endl;
         // Check if there is a subproblem for the current DFA state
         if (regionSubproblems.count(curr_dfa_state) == 0) {
             // Backtrack if necessary
-            // cout << "Backtracking" << endl;
             assert(currentRegionIndex > 0 && "currentRegionIndex must be positive");
             currentRegionIndex--;
             continue;  
@@ -417,54 +368,19 @@ void PDDLProblem::realize_dfa_trace_with_planner(shared_ptr<DFANode>& endTraceNo
         if (!retrieved_path) {
             // Use the planner to solve the subproblem
             // Instantiate the planner based on the type
-            shared_ptr<pddlboat::Planner> task_planner;
-
-            if (planner_type_ == "z3") {
-                pddlboat::Z3Planner::Options options;
-                options.dump_clauses = false;
-                task_planner = make_shared<pddlboat::Z3Planner>(subproblem, options);
-            } else if (planner_type_ == "fd") {
-                pddlboat::FastDownwardPlanner::Options options;
-                if (search_type_ == "lazygreedy") {
-                    options.search = pddlboat::FastDownwardPlanner::LAZYGREEDY;
-                } else if (search_type_ == "fdat") {
-                    options.search = pddlboat::FastDownwardPlanner::FDAT;
-                } else if (search_type_ == "lama") {
-                    options.search = pddlboat::FastDownwardPlanner::LAMA;
-                } else {
-                    cerr << "Unknown search type: " << search_type_ << endl;
-                    exit(EXIT_FAILURE);
-                }
-                task_planner = make_shared<pddlboat::FastDownwardPlanner>(subproblem, options);
-            } else if (planner_type_ == "ff") {
-                task_planner = make_shared<pddlboat::FastForwardPlanner>(subproblem);
-            } else if (planner_type_ == "symk") {
-                task_planner = make_shared<pddlboat::SymKPlanner>(subproblem);
-            } else if (planner_type_ == "astar") {
-                task_planner = make_shared<pddlboat::AStarPlanner>(subproblem);
-            } else {
-                cerr << "Unknown planner type: " << planner_type_ << endl;
-                exit(EXIT_FAILURE);
-            }
-    
-            // cout << "Plan:" << endl;
+            shared_ptr<pddlboat::Planner> task_planner = get_task_planner(subproblem);
             auto plan = make_shared<pddlboat::Plan>(subproblem);
             if (!task_planner->solve(*plan, subproblem_timeout_))
             {
-                // cerr << "Failed to solve!" << endl;
                 regionSubproblems.erase(curr_dfa_state);
                 continue;
-            } else {
-                // cout << "Solved subproblem with plan: " << *plan << endl;
             }
 
             // Get a trace of states from the plan.
             auto state_trace = plan->getStepStates(true);
-            vector<ProductState> product_path;
-
             if (state_trace.empty()) {
-                cerr << "ERROR: the plan is empty!" << endl;
-                regionSubproblems.clear();
+                cerr << "ERROR: the plan is empty! Search failed." << endl;
+                regionSubproblems.clear(); // Finish the search
                 continue;
             }
             
@@ -479,10 +395,8 @@ void PDDLProblem::realize_dfa_trace_with_planner(shared_ptr<DFANode>& endTraceNo
                 num_repeated_paths++;
                 // cout << "ERROR: Found a previously explored path to the dfa state " << next_dfa_state << endl;
                 if (num_repeated_paths >= max_num_repeated_paths) {
-                    // cerr << "Failed to find the alternative path!" << endl;
-                    regionSubproblems.clear();
-                    // regionSubproblems.erase(curr_dfa_state);
-                    // num_repeated_paths = 0;
+                    cerr << "Failed to find the alternative path! Search failed." << endl;
+                    regionSubproblems.clear(); // Finish the search
                 }
                 continue;
             }
@@ -493,29 +407,23 @@ void PDDLProblem::realize_dfa_trace_with_planner(shared_ptr<DFANode>& endTraceNo
             bdd last_domain_state_bdd = domain_manager_->get_state_bdd(last_domain_state);
             // Get a bdd corresponding to the transition in the DFA.
             bdd next_edge_cond = dfa_nodes.at(currentRegionIndex+1)->getParentEdgeCondition();
-            
-            // cout << "Edge condition for " << curr_dfa_state << "->" << next_dfa_state << " is as follows: " << endl;
-            // print_bdd(next_edge_cond);
 
             if (!dfa_manager_->is_transition_valid(next_edge_cond, last_domain_state_bdd)) {
-                // cout << "ERROR: Transition doesn't satisfy an edge condition for " << curr_dfa_state << "->" << next_dfa_state << endl;
+                cout << "ERROR: Transition doesn't satisfy an edge condition for " << curr_dfa_state << "->" << next_dfa_state << endl;
                 continue;
             }
 
-            // cout << "Subproblem has a state trace of length = " << state_trace.size() << endl;
-            bdd self_edge_cond = dfa_nodes.at(currentRegionIndex)->getSelfEdgeCondition();
-            // cout << "Self-edge condition for " << curr_dfa_state << "->" << curr_dfa_state << " is as follows: " << endl;
-            // print_bdd(self_edge_cond);
             bool valid_dfa_state = true;
+            vector<ProductState> product_path;
             // Iterate over all domain states except the last one
             for (int i = state_trace.size() - 2; i >= 0; --i) {
                 // Create a PDDLState
                 auto domain_state = make_shared<PDDLState>(state_trace.at(i));
                 // Get a bdd corresponding to this PDDL state.
                 bdd domain_state_bdd = domain_manager_->get_state_bdd(domain_state);
-                // cout << "Domain state: " << endl << *domain_state << "has a bdd as follows: " << domain_state_bdd << endl;
+    
                 // Verify that domain states correspond to the current dfa state.
-                if (!((i == 0) || (self_edge_cond == bddtrue) || (dfa_manager_->is_transition_valid(self_edge_cond, domain_state_bdd)))) {
+                if (!((i == 0) || dfa_manager_->is_transition_valid(dfa_nodes.at(currentRegionIndex)->getSelfEdgeCondition(), domain_state_bdd))) {
                     // cout << "ERROR: Transition doesn't satisfy a self-edge condition of dfa state = " << curr_dfa_state << endl;
                     valid_dfa_state = false;
                 }
@@ -541,12 +449,6 @@ void PDDLProblem::realize_dfa_trace_with_planner(shared_ptr<DFANode>& endTraceNo
 
             // Add it to the parent map to be able to backtrack.
             parent_map.emplace(next_prod_state, product_path);
-            // cout << "emplaced state: " << next_state << endl;
-
-            // Make all states in the path visited.
-            // for (const auto& product_state : product_path) {
-            //     visited.insert(product_state);
-            // }
 
             // Update the cost to 0 based on the success of the transition.
             dfa_manager_->update_dfa_transition_cost(dfa_nodes.at(currentRegionIndex + 1), SUCCESS_COST);
@@ -558,10 +460,6 @@ void PDDLProblem::realize_dfa_trace_with_planner(shared_ptr<DFANode>& endTraceNo
                 // Now we create a transition and add it to a product graph.
                 // Serves as a "skip-connection".
                 product_manager_->cache_path(path_to_cache_reversed, next_edge_cond);
-
-                // cout << "Cached this transition: " << curr_dfa_state << "=>" << next_dfa_state << endl;
-
-                // TODO: cache it as a path between modalities in DomainManager (can be reused for other TEG problems).
             }
         }
 
@@ -574,7 +472,6 @@ void PDDLProblem::realize_dfa_trace_with_planner(shared_ptr<DFANode>& endTraceNo
         // Check if it's the accepting state (last in the dfa trace).
         // If so, we have a solution!
         if (currentRegionIndex == dfa_trace.size() - 1) {
-            // cout << "We have reached the last accepting state in the dfa trace" << endl;
             // Backtrack to get the full path.
             product_path_ = construct_path(parent_map, next_prod_state);
             save_paths();
@@ -584,11 +481,6 @@ void PDDLProblem::realize_dfa_trace_with_planner(shared_ptr<DFANode>& endTraceNo
         // Instantiate a subproblem.
         pddlboat::ProblemPtr next_subproblem = create_subproblem(dfa_nodes.at(currentRegionIndex+1)->getParentEdgeCondition(), last_domain_state);
         regionSubproblems.insert({next_dfa_state, next_subproblem});
-        // cout << "Printing a map after inserting a problem for dfa_state=" <<  next_dfa_state << endl;
-        // for (const auto& pair : regionSubproblems) {
-        //     cout << "(DFA = " << pair.first << ", goal = ";
-        //     pair.second->goal->toPDDL(cout) << ")" << endl;
-        // }
     } 
     // We failed to realize the provided dfa trace.
     // Update the cost for the dfa transition we couldn't realize.
@@ -1006,3 +898,85 @@ void PDDLProblem::extract_names(const std::string& problemFile) {
     // std::cout << "Problem Name: " << problem_name_ << std::endl;
     // std::cout << "Domain Name: " << domain_name_ << std::endl;
 }
+
+// Helper function to validate the DFA trace
+bool PDDLProblem::validate_dfa_trace(const vector<size_t>& dfa_trace) {
+    if (dfa_trace.empty()) {
+        cerr << "ERROR: the DFA trace is empty!" << endl;
+        return false;
+    } else if (dfa_trace.size() == 1) {
+        cerr << "ERROR: the DFA trace is of size 1!" << endl;
+        return false;
+    }
+    return true;
+}
+
+// Helper function to generate heuristics based on landmarks
+int PDDLProblem::compute_heuristics(const ProductState& state, const map<size_t, DomainStateSet>& landmarks, size_t dfa_state) {
+    if (landmarks.count(dfa_state)) {
+        return state.compute_heuristic_cost(landmarks.at(dfa_state));
+    }
+    return 0;
+}
+
+// Helper function to handle wrong transitions
+bool PDDLProblem::handle_wrong_transitions(size_t& curr_num_wrong_dfa_trans,
+                                           shared_ptr<DFANode>& end_dfa_node, shared_ptr<DFANode>& next_dfa_node) {
+    curr_num_wrong_dfa_trans++;
+    if (curr_num_wrong_dfa_trans > max_num_wrong_dfa_trans_) {
+        dfa_manager_->give_up_on_path(end_dfa_node, next_dfa_node);
+        // cout << "Giving up on transition: " << next_dfa_node->getParent()->getState() << "=>" << next_dfa_node->getState() << endl;
+        return false;  // Giving up on this trace.
+    }
+    return true;
+}
+
+// Helper function to push a new product state onto the corresponding queue
+void PDDLProblem::enqueue_product_state(map<size_t, priority_queue<pair<int, ProductState>, vector<pair<int, ProductState>>, greater<pair<int, ProductState>>>>& regionQueues, const ProductState& state, int heuristic_cost, size_t dfa_state) {
+    regionQueues[dfa_state].push(make_pair(heuristic_cost, state));
+}
+
+shared_ptr<pddlboat::Planner> PDDLProblem::get_task_planner(const pddlboat::ProblemPtr& subproblem) const {
+    shared_ptr<pddlboat::Planner> task_planner;
+
+    if (planner_type_ == "z3") {
+        pddlboat::Z3Planner::Options options;
+        options.dump_clauses = false;
+        task_planner = make_shared<pddlboat::Z3Planner>(subproblem, options);
+
+    } else if (planner_type_ == "fd") {
+        pddlboat::FastDownwardPlanner::Options options;
+        // Configure search type for Fast Downward planner
+        if (search_type_ == "lazygreedy") {
+            options.search = pddlboat::FastDownwardPlanner::LAZYGREEDY;
+        } else if (search_type_ == "fdat") {
+            options.search = pddlboat::FastDownwardPlanner::FDAT;
+        } else if (search_type_ == "lama") {
+            options.search = pddlboat::FastDownwardPlanner::LAMA;
+        } else {
+            cerr << "Unknown search type: " << search_type_ << endl;
+            exit(EXIT_FAILURE);
+        }
+
+        task_planner = make_shared<pddlboat::FastDownwardPlanner>(subproblem, options);
+
+    } else if (planner_type_ == "ff") {
+        // Fast Forward planner
+        task_planner = make_shared<pddlboat::FastForwardPlanner>(subproblem);
+
+    } else if (planner_type_ == "symk") {
+        // SymK planner
+        task_planner = make_shared<pddlboat::SymKPlanner>(subproblem);
+
+    } else if (planner_type_ == "astar") {
+        // A* planner
+        task_planner = make_shared<pddlboat::AStarPlanner>(subproblem);
+
+    } else {
+        cerr << "Unknown planner type: " << planner_type_ << endl;
+        exit(EXIT_FAILURE);
+    }
+
+    return task_planner;
+}
+

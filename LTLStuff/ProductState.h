@@ -31,7 +31,7 @@ public:
         return domain_state_->distance(*other.domain_state_);
     }
 
-    int compute_heuristic_cost(const DomainStateSet& landmarks) {
+    int compute_heuristic_cost(const DomainStateSet& landmarks) const {
         if (heuristic_cost_ != INT_MAX) {
             // Has been already computed
             return heuristic_cost_;
@@ -64,7 +64,7 @@ public:
 private:
     std::shared_ptr<DomainState> domain_state_;
     size_t dfa_state_;
-    int heuristic_cost_;
+    mutable int heuristic_cost_;
 };
 
 inline std::ostream& operator<<(std::ostream& os, const ProductState& ps) {
