@@ -29,7 +29,7 @@
 using namespace std;
 
 // Example of the command
-// ./run.sh /Users/yuliiasuprun/Desktop/Classes/AlgoRobotics/Research/Code/Plan4Past-data/deterministic/LTLf/TB15/blocksworld/domain.pddl /Users/yuliiasuprun/Desktop/Classes/AlgoRobotics/Research/Code/Plan4Past-data/deterministic/LTLf/TB15/blocksworld/a03.pddl 3 -f -h --save_dfa --planner manual
+// ./run.sh /Users/yuliiasuprun/Desktop/Classes/AlgoRobotics/Research/Code/Plan4Past-data/deterministic/LTLf/TB15/blocksworld/domain.pddl /Users/yuliiasuprun/Desktop/Classes/AlgoRobotics/Research/Code/Plan4Past-data/deterministic/LTLf/TB15/blocksworld/a03.pddl 3 -f -h --save_dfa --planner fd --search lama
 
 // Commands for debugging
 // Translate 
@@ -48,7 +48,7 @@ using namespace std;
 
 int main(int argc, char** argv) {
     if (argc < 4) { 
-        cerr << "Usage: " << argv[0] << " <PDDL Domain File> <PDDL Problem File> <Number of Runs> [-c] [-f] [-l] [-h] [-planner <planner_type>]" << endl;
+        cerr << "Usage: " << argv[0] << " <PDDL Domain File> <PDDL Problem File> <Number of Runs> [-c] [-f] [-l] [-h] [--save_dfa] [--planner <planner_type>] [--search <search_type> (used only for the FD planner)] [--timeout <in ms>]" << endl;
         exit(EXIT_FAILURE);
     }
 
@@ -62,6 +62,15 @@ int main(int argc, char** argv) {
     bool hamming_dist = false;
     bool save_dfa = false;
     string planner_type;
+    string search_type;
+    string name_connector = "_"; // Default value for name connector
+    // Domain specific: "_" for Rovers, "-" for Openstacks
+    if (domainFilePath.find("openstacks") != std::string::npos) {
+        name_connector = "-";
+    } else if (domainFilePath.find("rovers") != std::string::npos) {
+        name_connector = "_";
+    }
+    size_t subproblem_timeout = 60000; // 1 minute by default
 
     for (int i = 4; i < argc; ++i) {
         string arg = argv[i];
@@ -77,6 +86,10 @@ int main(int argc, char** argv) {
             save_dfa = true;
         } else if (arg == "--planner" && i + 1 < argc) {
             planner_type = argv[++i]; // Move to the next argument
+        } else if (arg == "--search" && i + 1 < argc) {
+            search_type = argv[++i]; // Move to the next argument
+        } else if (arg == "--timeout" && i + 1 < argc) {
+            subproblem_timeout = stoi(argv[++i]); // Move to the next argument
         } else {
             cerr << "Unknown argument: " << arg << endl;
             exit(EXIT_FAILURE);
@@ -85,10 +98,17 @@ int main(int argc, char** argv) {
 
     // Validate planner type
     if (planner_type.empty()) {
-        cerr << "No planner type provided. Use -planner <planner_type>. Options: manual, z3, fd, ff, symk, astar" << endl;
+        cerr << "No planner type provided. Use --planner <planner_type>. Options: manual, z3, fd, ff, symk, astar" << endl;
         exit(EXIT_FAILURE);
     } else {
         cout << "Using the planner: " << planner_type << endl;
+    }
+
+    if (planner_type == "fd" && search_type.empty()) {
+        cerr << "No search type provided for the FD planner. Use --search <search_type>. Options: lazygreedy, fdat, lama" << endl;
+        exit(EXIT_FAILURE);
+    } else if (planner_type == "fd") {
+        cout << "Using the search: " << search_type << endl;
     }
 
     // Variables to store total elapsed time and for averaging
@@ -108,7 +128,7 @@ int main(int argc, char** argv) {
         shared_ptr<PDDLProblem> pddlProblem;
         try {
             pddlDomain = make_shared<PDDLDomain>(domainFilePath);
-            pddlProblem = make_shared<PDDLProblem>(problemFilePath, pddlDomain, planner_type, cache, feedback, use_landmarks, hamming_dist, save_dfa);
+            pddlProblem = make_shared<PDDLProblem>(problemFilePath, pddlDomain, planner_type, search_type, name_connector, cache, feedback, use_landmarks, hamming_dist, save_dfa, subproblem_timeout);
         } catch (const std::exception& e) {
             cerr << "Error: " << e.what() << endl;
             exit(EXIT_FAILURE);
@@ -184,6 +204,7 @@ int main(int argc, char** argv) {
             ofs << "Average total time: " << averageTotalTime << " seconds" << std::endl;
             ofs << "Average number of expanded nodes: " << averageExpandedNodes << std::endl;
             ofs << "Average plan length: " << averagePlanLength << std::endl;
+            ofs << "Average number of backtracks: " << averageNumOfBacktracks << std::endl;
 
             // Close the file
             ofs.close();

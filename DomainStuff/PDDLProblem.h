@@ -32,7 +32,7 @@ using namespace std;
 
 class PDDLProblem {
 public:
-    PDDLProblem(const string& problemFile, shared_ptr<PDDLDomain> domainPtr, const string& planner_type, bool cache=false, bool feedback=false, bool use_landmarks=false, bool hamming_dist=false, bool save_dfa=false);
+    PDDLProblem(const string& problemFile, shared_ptr<PDDLDomain> domainPtr, const string& planner_type, const string& search_type={}, const string& name_connector="-", bool cache=false, bool feedback=false, bool use_landmarks=false, bool hamming_dist=false, bool save_dfa=false, size_t subproblem_timeout=60000);
     ~PDDLProblem();
 
     // Method to get the wrapped pddlboat::Problem
@@ -80,6 +80,8 @@ private:
     shared_ptr<PDDLState> start_domain_state_;
 
     string planner_type_;
+    string search_type_;
+    string name_connector_;
     bool cache_;
     bool feedback_;
     bool use_landmarks_;
@@ -104,6 +106,7 @@ private:
     chrono::duration<double> dfa_construction_time_;
     size_t num_expanded_nodes_;
     size_t num_of_backtracks_;
+    size_t subproblem_timeout_;
 };
 
 #endif // PDDL_PROBLEM_H

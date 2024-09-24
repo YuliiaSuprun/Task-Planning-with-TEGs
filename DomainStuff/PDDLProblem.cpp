@@ -7,10 +7,10 @@
 #include <fstream>
 #include <filesystem>  // Requires C++17
 
-PDDLProblem::PDDLProblem(const string& problemFile, shared_ptr<PDDLDomain> domainPtr, const string& planner_type, bool cache, bool feedback, bool use_landmarks, bool hamming_dist, bool save_dfa) 
-: domain_(domainPtr), planner_type_(planner_type), cache_(cache),
-feedback_(feedback), use_landmarks_(use_landmarks),
-hamming_dist_(hamming_dist), save_dfa_(save_dfa), bdd_dict_(make_shared<spot::bdd_dict>()), num_expanded_nodes_(0), num_of_backtracks_(0) {
+PDDLProblem::PDDLProblem(const string& problemFile, shared_ptr<PDDLDomain> domainPtr, const string& planner_type, const string& search_type, const string& name_connector, bool cache, bool feedback, bool use_landmarks, bool hamming_dist, bool save_dfa, size_t subproblem_timeout) 
+: domain_(domainPtr), planner_type_(planner_type), search_type_(search_type),
+name_connector_(name_connector), cache_(cache), feedback_(feedback),
+use_landmarks_(use_landmarks), hamming_dist_(hamming_dist), save_dfa_(save_dfa), bdd_dict_(make_shared<spot::bdd_dict>()), num_expanded_nodes_(0), num_of_backtracks_(0), subproblem_timeout_(subproblem_timeout) {
 
     // Extracting the problem name
     extract_names(problemFile);
@@ -52,7 +52,7 @@ hamming_dist_(hamming_dist), save_dfa_(save_dfa), bdd_dict_(make_shared<spot::bd
 
     auto end1 = chrono::high_resolution_clock::now();
     dfa_construction_time_ = end1 - start1;
-    // std::cout << "time of calculating the automaton: " << dfa_construction_time_.count() << " seconds" << std::endl;
+    std::cout << "time of calculating the automaton: " << dfa_construction_time_.count() << " seconds" << std::endl;
 
     // dfa_manager_->print_dfa();
     if (save_dfa_) {
@@ -93,13 +93,16 @@ const pddlboat::ProblemPtr& PDDLProblem::getPddlboatProblemPtr() const {
 }
 
 vector<ProductState> PDDLProblem::solve() {
+    // Clear any existing paths from previous executions.
     product_path_.clear();
     dfa_path_.clear();
 
+    // Retrieve the start state of the DFA.
     size_t dfa_start_state = dfa_manager_->get_start_state();
+    // Error if the DFA is trivial (only a single accepting state).
     if (dfa_manager_->is_accepting_state(dfa_start_state)) {
         cerr << "ERROR: DFA has a single state. LTL formula is not descriptive enough." << endl;
-        return vector<ProductState>();
+        return {};
     }
 
     // Initialize all paths from the root = the start dfa state.
@@ -112,17 +115,20 @@ vector<ProductState> PDDLProblem::solve() {
         // cout << "=== Iteration " << curr_iter++ << " ===" << endl;
         // domain_manager_->print_ap_mapping();
         // Pick a "likely" DFA trace that ends in the acceptance state.
+        num_of_backtracks_++;
         auto endTraceNode = dfa_manager_->generate_dfa_path();
 
         if (!endTraceNode) {
             // No more accepted DFA traces were found.
-            cout << "endTraceNode is null" << endl;
+            // cout << "endTraceNode is null" << endl;
             break;
         }
 
         // Attempt to realize this trace in the task domain.
         realize_dfa_trace(endTraceNode);
     }
+    // The last backtrack didn't happen.
+    num_of_backtracks_--;
     return product_path_;
 }
 
@@ -238,8 +244,7 @@ void PDDLProblem::realize_dfa_trace_manually(shared_ptr<DFANode>& endTraceNode) 
                 if (curr_num_wrong_dfa_trans > max_num_wrong_dfa_trans) {
                     // Give up on this trace!
                     dfa_manager_->give_up_on_path(dfa_nodes.back(), dfa_nodes.at(currentRegionIndex+1));
-                    num_of_backtracks_++;
-                    cout << "Giving up on transition: " << curr_dfa_state << "=>" << dfa_trace.at(currentRegionIndex+1) << endl;
+                    // cout << "Giving up on transition: " << curr_dfa_state << "=>" << dfa_trace.at(currentRegionIndex+1) << endl;
                     return;
                 }
                 // if (feedback_ && dfa_manager_->dfa_transition_cost(curr_dfa_state, next_dfa_state) != SUCCESS_COST) {
@@ -336,7 +341,6 @@ void PDDLProblem::realize_dfa_trace_manually(shared_ptr<DFANode>& endTraceNode) 
 void PDDLProblem::realize_dfa_trace_with_planner(shared_ptr<DFANode>& endTraceNode) {
 
     auto dfa_trace = endTraceNode->getPathFromRoot();
-
     auto dfa_nodes = endTraceNode->getNodePathFromRoot();
 
     if (dfa_trace.empty()) {
@@ -347,51 +351,44 @@ void PDDLProblem::realize_dfa_trace_with_planner(shared_ptr<DFANode>& endTraceNo
         return;
     }
 
-    size_t dfa_start_state = dfa_trace.front();
-    ProductState start_state(start_domain_state_, dfa_start_state);
-
     size_t currentRegionIndex = 0;
     size_t maxRegionIndexReached = 0;
+    int max_num_wrong_dfa_trans = 3;
+    int max_num_repeated_paths = 3;
+    int num_wrong_dfa_trans = 0;
+    int num_repeated_paths = 0;
+
+    set<ProductState> visited;
+    map<size_t, pddlboat::ProblemPtr> regionSubproblems;
+    map<ProductState, vector<ProductState>> parent_map;
+
+    size_t dfa_start_state = dfa_trace.front();
     size_t curr_dfa_state = dfa_trace.at(currentRegionIndex);
     size_t next_dfa_state = dfa_trace.at(currentRegionIndex + 1);
 
-    int max_num_wrong_dfa_trans = 3;
-    int max_num_repeated_paths = 3;
-
-    set<ProductState> visited;
+    ProductState start_state(start_domain_state_, dfa_start_state);
     visited.insert(start_state);
 
-    // Initialize a map of subproblems?
-    // (one subproblem for each DFA state in the trace)
-    map<size_t, pddlboat::ProblemPtr> regionSubproblems;
-
-    // int curr_state_heuristic = 0;
-    // Instantiate a subproblem (pddlboat::ProblemPtr)
+    // Instantiate a subproblem for the first transition
     pddlboat::ProblemPtr start_subproblem = create_subproblem(dfa_nodes.at(1)->getParentEdgeCondition(), start_domain_state_);
     regionSubproblems.insert({dfa_start_state, start_subproblem});
-
-    map<ProductState, vector<ProductState>> parent_map;
     
-    int num_wrong_dfa_trans = 0;
-    int num_repeated_paths = 0;
     while (!regionSubproblems.empty()) {
         curr_dfa_state = dfa_trace.at(currentRegionIndex);
         next_dfa_state = dfa_trace.at(currentRegionIndex + 1);
-        
-
         // cout << "Trying to realize a transition: " << curr_dfa_state << "=>" << next_dfa_state << endl;
+        // Check if there is a subproblem for the current DFA state
         if (regionSubproblems.count(curr_dfa_state) == 0) {
-            // This problem can't be solved.
-            // cout << "Backtracking" << endl;
             // Backtrack if necessary
+            // cout << "Backtracking" << endl;
             assert(currentRegionIndex > 0 && "currentRegionIndex must be positive");
             currentRegionIndex--;
             continue;  
         }
 
         auto& subproblem = regionSubproblems[curr_dfa_state];
-        std::cout << "Subproblem to be solved: " << std::endl;
-        subproblem->goal->toPDDL(std::cout) << std::endl;
+        // std::cout << "Solving subproblem for DFA state: " << curr_dfa_state << std::endl;
+        // subproblem->goal->toPDDL(std::cout) << std::endl;
 
         auto curr_domain_state = make_shared<PDDLState>(subproblem->start);
         ProductState curr_prod_state(curr_domain_state, curr_dfa_state);
@@ -407,8 +404,9 @@ void PDDLProblem::realize_dfa_trace_with_planner(shared_ptr<DFANode>& endTraceNo
                 next_prod_state = transition.out_state();
                 
                 if (next_prod_state.get_dfa_state() == next_dfa_state) {
-                    // Add it to the parent map to be able to backtrack.
+                    // Cached solution found
                     cout << "WARNING: Using a cached solution!" << endl;
+                    // Add it to the parent map to be able to backtrack.
                     parent_map.emplace(next_prod_state, transition.path());
                     last_domain_state = static_pointer_cast<PDDLState>(next_prod_state.get_domain_state());
                     retrieved_path = true;
@@ -417,6 +415,7 @@ void PDDLProblem::realize_dfa_trace_with_planner(shared_ptr<DFANode>& endTraceNo
         }
 
         if (!retrieved_path) {
+            // Use the planner to solve the subproblem
             // Instantiate the planner based on the type
             shared_ptr<pddlboat::Planner> task_planner;
 
@@ -426,7 +425,16 @@ void PDDLProblem::realize_dfa_trace_with_planner(shared_ptr<DFANode>& endTraceNo
                 task_planner = make_shared<pddlboat::Z3Planner>(subproblem, options);
             } else if (planner_type_ == "fd") {
                 pddlboat::FastDownwardPlanner::Options options;
-                options.search = pddlboat::FastDownwardPlanner::LAZYGREEDY;  // LAZYGREEDY, FDAT, LAMA
+                if (search_type_ == "lazygreedy") {
+                    options.search = pddlboat::FastDownwardPlanner::LAZYGREEDY;
+                } else if (search_type_ == "fdat") {
+                    options.search = pddlboat::FastDownwardPlanner::FDAT;
+                } else if (search_type_ == "lama") {
+                    options.search = pddlboat::FastDownwardPlanner::LAMA;
+                } else {
+                    cerr << "Unknown search type: " << search_type_ << endl;
+                    exit(EXIT_FAILURE);
+                }
                 task_planner = make_shared<pddlboat::FastDownwardPlanner>(subproblem, options);
             } else if (planner_type_ == "ff") {
                 task_planner = make_shared<pddlboat::FastForwardPlanner>(subproblem);
@@ -441,14 +449,13 @@ void PDDLProblem::realize_dfa_trace_with_planner(shared_ptr<DFANode>& endTraceNo
     
             // cout << "Plan:" << endl;
             auto plan = make_shared<pddlboat::Plan>(subproblem);
-            if (!task_planner->solve(*plan))
+            if (!task_planner->solve(*plan, subproblem_timeout_))
             {
-                cerr << "Failed to solve!" << endl;
-                // exit(1);
+                // cerr << "Failed to solve!" << endl;
                 regionSubproblems.erase(curr_dfa_state);
                 continue;
             } else {
-                cout << "Solved the subproblem: " << *plan << endl;
+                // cout << "Solved subproblem with plan: " << *plan << endl;
             }
 
             // Get a trace of states from the plan.
@@ -461,7 +468,7 @@ void PDDLProblem::realize_dfa_trace_with_planner(shared_ptr<DFANode>& endTraceNo
                 continue;
             }
             
-            // Handle the last domain state separately
+            // Get the final state from the plan and check if it satisfies the DFA edge condition
             last_domain_state = make_shared<PDDLState>(state_trace.back());
             next_prod_state = ProductState(last_domain_state, next_dfa_state);
 
@@ -720,11 +727,11 @@ pddlboat::ProblemPtr PDDLProblem::create_subproblem(bdd& edge_cond, shared_ptr<P
     subproblem->goal = pddlboat::makeAnd(goals);
 
     auto domain = subproblem->domain;
-    cout << "Subproblem's domain is: " << endl;
-    domain->toPDDL(std::cout) << std::endl;
+    // cout << "Subproblem's domain is: " << endl;
+    // domain->toPDDL(std::cout) << std::endl;
 
-    cout << "Subgoal is: " << endl;
-    subproblem->goal->toPDDL(std::cout) << std::endl;
+    // cout << "Subgoal is: " << endl;
+    // subproblem->goal->toPDDL(std::cout) << std::endl;
 
     return subproblem;
 }
@@ -733,92 +740,74 @@ map<pddlboat::PredicatePtr, bool> PDDLProblem::collect_bound_predicates(bdd& edg
     // Vector to collect bound predicates (as a map from PredicatePtrs to a boolean)
     map<pddlboat::PredicatePtr, bool> bound_predicates;
 
+    // cout << "Printing predicates" << endl;
+    // for (const auto& pred_pair : pddlProblem_->domain->predicates) {
+    //     cout << pred_pair.first << endl;
+    // }
+    // cout << "=====" << endl;
+
     for (size_t i = 0; i < bdd_dict_->var_map.size() + 1; ++i) {
         bdd p = bdd_ithvar(i);  // Represents the atomic proposition 'p'
         bdd np = bdd_nithvar(i); // Represents the negation of 'p'
-        if ((bdd_restrict(edge_cond, np) != bddfalse) && (bdd_restrict(edge_cond, p) != bddfalse)) {
-            // cout << "Continue: var not there" << endl;
-            continue;
+
+        // Compute BDD restrictions (XOR)
+        bool contains_pos = (bdd_restrict(edge_cond, np) == bddfalse);
+        bool contains_neg = (bdd_restrict(edge_cond, p) == bddfalse);
+
+        if (!contains_pos && !contains_neg) {
+            continue; // Neither condition affects the result
         }
         // Get the atomic proposition name
         string ap_name = domain_manager_->get_ap_name(i);
 
         // Split the atomic proposition name by "_"
-        istringstream ss(ap_name);
-        string token;
         vector<string> tokens;
-        while (getline(ss, token, '_')) {
-            tokens.push_back(token);
+        size_t start = 0, end = 0;
+        while ((end = ap_name.find('_', start)) != string::npos) {
+            tokens.push_back(ap_name.substr(start, end - start));
+            start = end + 1;
         }
+        tokens.push_back(ap_name.substr(start));
 
         if (tokens.size() < 2) {
             cerr << "Invalid AP name format: " << ap_name << endl;
-            // continue;
-        }
-
-        size_t token_num = 1;
-        // size_t last_valid_token_num = 0;
-        // The first part is the name of the predicate
-        string predicate_name = tokens.at(0);
-        // cout << "Printing predicates" << endl;
-        // for (const auto& pred_pair : pddlProblem_->domain->predicates) {
-        //     cout << pred_pair.first << endl;
-        // }
-        // cout << "=====" << endl;
-
-        // Find the predicate definition
-        auto predicate_it = pddlProblem_->domain->predicates.find(predicate_name);
-        // auto last_valid_predicate_it = pddlProblem_->domain->predicates.end();
-        // if (predicate_it != pddlProblem_->domain->predicates.end()) {
-        //     last_valid_predicate_it = predicate_it;
-        //     last_valid_token_num = token_num;
-        // }
-        // // Needed for rovers
-        // while (token_num < tokens.size()) {
-        //     predicate_name = predicate_name + "_" + tokens.at(token_num);
-        //     predicate_it = pddlProblem_->domain->predicates.find(predicate_name);
-        //     token_num++;
-        //     if (predicate_it != pddlProblem_->domain->predicates.end()) {
-        //         last_valid_predicate_it = predicate_it;
-        //         last_valid_token_num = token_num;
-        //     }
-        // }
-        if (predicate_it == pddlProblem_->domain->predicates.end()) {
-            // Needed for openstacks
-            while (token_num < tokens.size() && predicate_it == pddlProblem_->domain->predicates.end()) {
-                predicate_name = predicate_name + "-" + tokens.at(token_num);
-                predicate_it = pddlProblem_->domain->predicates.find(predicate_name);
-                token_num++;
-            }
-        }
-        // predicate_it = last_valid_predicate_it;
-        // token_num = last_valid_token_num;
-
-        if (predicate_it == pddlProblem_->domain->predicates.end()) {
-            std::cerr << "Predicate not found: " << predicate_name << std::endl;
             continue;
         }
 
-        auto p_predicate = predicate_it->second;
+        string predicate_name = tokens.at(0);
+        // Find the predicate definition
+        auto predicate_it = pddlProblem_->domain->predicates.find(predicate_name);
+        auto last_valid_predicate_it = predicate_it;
 
-        vector<string> bindings(tokens.begin() + token_num, tokens.end());
+        size_t last_valid_token_num = 0;
+
+        // Needed for rovers
+        for (size_t token_num = 1; token_num < tokens.size(); ++token_num) {
+            // First, check predicates connected by underscores
+            predicate_name = predicate_name + name_connector_ + tokens.at(token_num);
+            predicate_it = pddlProblem_->domain->predicates.find(predicate_name);
+            if (predicate_it != pddlProblem_->domain->predicates.end()) {
+                last_valid_predicate_it = predicate_it;
+                last_valid_token_num = token_num;
+            }
+        }
+        if (last_valid_predicate_it == pddlProblem_->domain->predicates.end()) {
+            std::cerr << "Predicate not found for AP: " << ap_name << std::endl;
+            continue;
+        }
+
+        auto p_predicate = last_valid_predicate_it->second;
+
+        vector<string> bindings(tokens.begin() + last_valid_token_num+1, tokens.end());
         // Bind the predicate
         auto bound_pred = p_predicate->bind(bindings, pddlProblem_);
 
-        // Check if including the proposition (or its negation) makes a difference in the XOR result
-        if (bdd_restrict(edge_cond, np) == bddfalse) {
-            // Condition contains positive p
-            // std::cout << "Found a positive ap: " << ap_name << std::endl;
-            bound_predicates[bound_pred] = true;
-        } else if (bdd_restrict(edge_cond, p) == bddfalse) {
-            // Condition contains negative p
-            // std::cout << "Found a negative ap: " << ap_name << std::endl;
-            // Negate it
-            bound_predicates[bound_pred] = false;
-        }
+        // Set boolean value based on the presence of positive or negative conditions
+        bound_predicates[bound_pred] = contains_pos;
     }
     return bound_predicates;
 }
+
 
 void PDDLProblem::split_constraints_and_goals(
     const map<pddlboat::PredicatePtr, bool>& bound_predicates,
@@ -840,13 +829,13 @@ void PDDLProblem::split_constraints_and_goals(
 
         // Check if the predicate (or its negation) is true in the start state.
         if (predicateHoldsInState(start_state, predicate) == is_positive) {
-            std::cout << "Predicate is satisfied in the start_state: ";
-            signed_predicate->toPDDL(std::cout) << std::endl;
+            // std::cout << "Predicate is satisfied in the start_state: ";
+            // signed_predicate->toPDDL(std::cout) << std::endl;
             // The start state satisfies this predicate, so it's a constraint.
             constraints.push_back(signed_predicate);
         } else {
-            std::cout << "Predicate is NOT satisfied in the start_state: ";
-            signed_predicate->toPDDL(std::cout) << std::endl;
+            // std::cout << "Predicate is NOT satisfied in the start_state: ";
+            // signed_predicate->toPDDL(std::cout) << std::endl;
             // The start state does not satisfy this predicate, so it's a goal.
             goals.push_back(signed_predicate);
         }
@@ -872,7 +861,7 @@ pddlboat::DomainPtr PDDLProblem::get_domain_with_constraints(pddlboat::Expressio
 
     domain->addDerivedPredicate(derived_predicate_definition);
 
-    cout << "Added derived predicate: " << constraint_predicate_name << endl;
+    // cout << "Added derived predicate: " << constraint_predicate_name << endl;
 
     // Clear all actions in the new domain.
     domain->actions.clear();
@@ -941,7 +930,7 @@ void PDDLProblem::print_bdd(bdd& expr) {
 
 std::string PDDLProblem::write_solution_to_file() const {
     std::string dir_name = "solutions";
-    dir_name += "_with_" + planner_type_;
+    dir_name += "_with_" + planner_type_ + search_type_;
     // Create the solutions directory if it doesn't exist
     std::filesystem::create_directory(dir_name);
 
