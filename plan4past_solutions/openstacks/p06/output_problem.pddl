@@ -1,0 +1,6 @@
+(define (problem grounded-STRIPS-OS-SEQUENCEDSTRIPS-WBOP_10_10-11)
+    (:domain grounded-STRIPS-OPENSTACKS-SEQUENCEDSTRIPS)
+    (:objects )
+    (:init (MACHINE-AVAILABLE-) (NOT-MADE-P1) (NOT-MADE-P10) (NOT-MADE-P2) (NOT-MADE-P3) (NOT-MADE-P4) (NOT-MADE-P5) (NOT-MADE-P6) (NOT-MADE-P7) (NOT-MADE-P8) (NOT-MADE-P9) (STACKS-AVAIL-N0) (WAITING-O1) (WAITING-O10) (WAITING-O2) (WAITING-O3) (WAITING-O4) (WAITING-O5) (WAITING-O6) (WAITING-O7) (WAITING-O8) (WAITING-O9))
+    (:goal (val-not-Omade-p10-and-not-YOmade-p9-and-not-Omade-p9-and-not-YOmade-p8-and-not-Omade-p8-and-not-YOmade-p7-and-not-Omade-p7-and-not-YOmade-p6-and-not-Omade-p6-and-not-YOmade-p5-and-not-Omade-p5-and-not-YOmade-p4-and-not-Omade-p4-and-not-YOmade-p3-and-not-Omade-p3-and-not-YOmade-p2-and-not-Omade-p2-and-not-YOmade-p1-and-Oshipped-o1-and-Oshipped-o2-and-Oshipped-o3-and-Oshipped-o4-and-Oshipped-o5-and-Oshipped-o6-and-Oshipped-o7-and-Oshipped-o8-and-Oshipped-o9-and-Oshipped-o10))
+)

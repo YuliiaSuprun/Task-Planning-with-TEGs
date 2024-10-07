@@ -1,0 +1,9 @@
+For 1 runs: 
+Average DFA construction time: 59.6228 seconds
+First DFA construction time: 59.6228 seconds
+Average DFA construction time (without first): 0 seconds
+Average search time: 4.78171 seconds
+Average total time: 64.4045 seconds
+Average number of expanded nodes: 0
+Average plan length: 4
+Average number of backtracks: 6

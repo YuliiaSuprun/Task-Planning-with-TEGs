@@ -1,0 +1,6 @@
+(define (problem grounded-STRIPS-OS-SEQUENCEDSTRIPS-SMALL-4)
+    (:domain grounded-STRIPS-OPENSTACKS-SEQUENCEDSTRIPS)
+    (:objects )
+    (:init (MACHINE-AVAILABLE-) (NOT-MADE-P1) (NOT-MADE-P2) (NOT-MADE-P3) (NOT-MADE-P4) (NOT-MADE-P5) (STACKS-AVAIL-N0) (WAITING-O1) (WAITING-O2) (WAITING-O3) (WAITING-O4) (WAITING-O5))
+    (:goal (val-OOshipped-o1-and-Oshipped-o2-and-Oshipped-o3-and-Oshipped-o4-and-Oshipped-o5))
+)

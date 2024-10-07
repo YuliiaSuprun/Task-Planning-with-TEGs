@@ -1,0 +1,5 @@
+For 50 runs:
+Average translate time: 0.604529 seconds
+Average solve time: 6.20986 seconds
+Average total time: 6.81439 seconds
+Average plan length: 23

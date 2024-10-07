@@ -1,0 +1,4 @@
+(navigate rover1 waypoint0 waypoint1)
+(sample_soil rover1 rover1store waypoint1)
+(communicate_soil_data rover1 general waypoint1 waypoint1 waypoint3)
+; cost = 3 (unit cost)
