@@ -3,21 +3,21 @@
 #include <pddlboat/parser/translator.hpp>
 
 PDDLDomain::PDDLDomain(const string& domainFile) {
-    parseDomain(domainFile);
+    pddlDomain_ = parseDomain(domainFile);
     // cout << "Domain was parsed!!!" << endl;
     // pddlDomain_->toPDDL(std::cout) << std::endl;
 
     initializeActions();
 }
 
-void PDDLDomain::parseDomain(const string& domainFile) {
+pddlboat::DomainPtr PDDLDomain::parseDomain(const string& domainFile) {
     pddlboat::ast::Domain domain_ast;
     if (!pddlboat::parseFile(domainFile, domain_ast)) {
         throw runtime_error("Failed to parse PDDL domain file");
     }
 
     try {
-        pddlDomain_ = pddlboat::toDomain(domain_ast);
+        return pddlboat::toDomain(domain_ast);
     } catch (const exception& e) {
         throw runtime_error("Exception translating domain: " + string(e.what()));
     }

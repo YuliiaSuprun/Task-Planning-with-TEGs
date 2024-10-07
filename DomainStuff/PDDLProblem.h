@@ -61,16 +61,20 @@ public:
     size_t get_num_expanded_nodes() const;
     size_t get_num_generated_nodes() const;
     size_t get_num_of_backtracks() const;
+    size_t get_plan_length() const;
     map<string, pair<string, vector<string>>> get_pred_mapping() const;
 
     void print_product_path() const;
     void print_domain_path() const;
     void print_dfa_path() const;
 
-    string write_solution_to_file() const;
+    static string extract_problem_name(const string &path, const string &extension = ".pddl");
+    static string extract_domain_name(const string &path);
+
+    void write_solution_to_file(const string& file_path) const;
 
 private:
-    void extract_names(const string& problemFile);
+    void extract_names(const string &problemFile);
     void parseProblem(const string& problemFile, shared_ptr<PDDLDomain> domainPtr);
     void save_paths();
     void realize_dfa_trace(shared_ptr<DFANode>& end_trace_node);

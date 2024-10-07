@@ -3,12 +3,15 @@
 
 #include <iostream>
 #include <ostream>
+#include <pddlboat/solver/planner.hpp> // needed for Plan::Step
 #include "DomainState.h"
+#include "Action.h"
 
 class ProductState {
 public:
-    ProductState(const std::shared_ptr<DomainState> domain_state, size_t dfa_state)
-    : domain_state_(domain_state), dfa_state_(dfa_state), heuristic_cost_(INT_MAX) {}
+
+    ProductState(const std::shared_ptr<DomainState> domain_state, size_t dfa_state, std::shared_ptr<pddlboat::Plan::Step> step = nullptr)
+    : domain_state_(domain_state), dfa_state_(dfa_state), step_(step), heuristic_cost_(INT_MAX) {}
 
     // Accessor methods
     std::shared_ptr<DomainState> get_domain_state() const {
@@ -17,6 +20,10 @@ public:
 
     size_t get_dfa_state() const {
         return dfa_state_;
+    }
+
+    std::shared_ptr<pddlboat::Plan::Step> get_step() const {
+        return step_;
     }
 
     bool isCached() const { 
@@ -64,6 +71,7 @@ public:
 private:
     std::shared_ptr<DomainState> domain_state_;
     size_t dfa_state_;
+    std::shared_ptr<pddlboat::Plan::Step> step_;  // a plan step that led to this state
     mutable int heuristic_cost_;
 };
 

@@ -28,12 +28,12 @@ public:
     shared_ptr<pddlboat::Domain> getPddlboatDomainPtr() const;
 
     void setProblem(pddlboat::ProblemPtr problemPtr);
+    static pddlboat::DomainPtr parseDomain(const string& domainFile);
 
 private:
     pddlboat::DomainPtr pddlDomain_;
     pddlboat::ProblemPtr pddlProblem_;
     vector<shared_ptr<PDDLAction>> actions_;
-    void parseDomain(const string& domainFile);
     void initializeActions();
     // pddlboat::StatePtr createInitialState(const pddlboat::ProblemPtr& problem);
 
