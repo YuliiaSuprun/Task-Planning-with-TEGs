@@ -27,7 +27,7 @@
 using namespace std;
 
 // Example of the command
-// ./run.sh /Users/yuliiasuprun/Desktop/Classes/AlgoRobotics/Research/Code/Plan4Past-data/deterministic/PPLTL/TB15/blocksworld/domain.pddl /Users/yuliiasuprun/Desktop/Classes/AlgoRobotics/Research/Code/Plan4Past-data/deterministic/PPLTL/TB15/blocksworld/a03.pddl /Users/yuliiasuprun/Desktop/Classes/AlgoRobotics/Research/Code/Plan4Past-data/deterministic/PPLTL/TB15/blocksworld/blocksworld_teg.json 1 --planner fd --search lama
+// ./run_single_p4p.sh /Users/yuliiasuprun/Desktop/Classes/AlgoRobotics/Research/Code/Plan4Past-data/deterministic/PPLTL/TB15/blocksworld/domain.pddl /Users/yuliiasuprun/Desktop/Classes/AlgoRobotics/Research/Code/Plan4Past-data/deterministic/PPLTL/TB15/blocksworld/a03.pddl /Users/yuliiasuprun/Desktop/Classes/AlgoRobotics/Research/Code/Plan4Past-data/deterministic/PPLTL/TB15/blocksworld/blocksworld_teg.json 1 --planner fd --search lama
 
 // Example command to run plan4past:
 // plan4past -d examples/pddl/domain.pddl -p examples/pddl/p-0.pddl -g "ontable_c & O(on_b_a)" -od output_domain.pddl -op output_problem.pddl

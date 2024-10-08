@@ -635,23 +635,37 @@ size_t PDDLProblem::get_plan_length() const {
 }
 
 pddlboat::ProblemPtr PDDLProblem::create_subproblem(bdd& edge_cond, shared_ptr<PDDLState> start_state) {
-    // Collect bound predicates
+
+    // Collect bound predicates 
     auto bound_predicates = collect_bound_predicates(edge_cond);
+    // If there are no predicates whose restriction makes the condition false, we have a disjunction!
+    bool is_disjunction = bound_predicates.empty();
 
     // Separate constraints and goals based on start state
     vector<pddlboat::ExpressionPtr> constraints;
     vector<pddlboat::ExpressionPtr> goals;
-    split_constraints_and_goals(bound_predicates, start_state->getPddlboatStatePtr(), constraints, goals);
 
-    // Step 1: create a domain with constraints for the subproblem.
-    // Create a derived predicate for constraints that must always hold true.
-    auto constraints_expr = pddlboat::makeAnd(constraints);
+    pddlboat::DomainPtr domain = domain_->getPddlboatDomainPtr();
 
-    // Update a domain by adding constraints
-    auto updated_domain = get_domain_with_constraints(constraints_expr, domain_->getPddlboatDomainPtr());
+    // Step 1: get goals and create a domain with constraints.
+    if (is_disjunction) {
+        // Collect the predicates that are part of the disjunction
+        bound_predicates = collect_bound_predicates_in_OR(edge_cond);
+        // For disjunction, we don't need constraints.
+        get_goals(bound_predicates, goals);
+    } else {
+        // For conjunction.
+        split_constraints_and_goals(bound_predicates, start_state->getPddlboatStatePtr(), constraints, goals);
+
+        // Create a derived predicate for constraints that must always hold true.
+        auto constraints_expr = pddlboat::makeAnd(constraints);
+
+        // Update a domain by adding constraints
+        domain = get_domain_with_constraints(constraints_expr, domain);
+    }
 
     // Step 2: Use the new domain to create a new subproblem
-    auto subproblem = make_shared<pddlboat::Problem>(pddlProblem_->name, updated_domain);
+    auto subproblem = make_shared<pddlboat::Problem>(pddlProblem_->name, domain);
 
     // Step 3: Set the problem objects.
     subproblem->objects = pddlProblem_->objects;
@@ -659,10 +673,14 @@ pddlboat::ProblemPtr PDDLProblem::create_subproblem(bdd& edge_cond, shared_ptr<P
     // Step 4: Set the start state
     subproblem->start = start_state->getPddlboatStatePtr();
 
-    // Step 5: Create a new goal with the unsatisfied predicates
-    subproblem->goal = pddlboat::makeAnd(goals);
+    // Step 5: Create a new goal
+    if (is_disjunction) {
+        subproblem->goal = pddlboat::makeOr(goals);
+    } else {
+        subproblem->goal = pddlboat::makeAnd(goals);
+    }
 
-    auto domain = subproblem->domain;
+    // auto domain = subproblem->domain;
     // cout << "Subproblem's domain is: " << endl;
     // domain->toPDDL(std::cout) << std::endl;
 
@@ -671,6 +689,49 @@ pddlboat::ProblemPtr PDDLProblem::create_subproblem(bdd& edge_cond, shared_ptr<P
 
     return subproblem;
 }
+
+pddlboat::PredicatePtr PDDLProblem::extract_predicate_from_ap_name(const std::string& ap_name) {
+    // Split the atomic proposition name by "_"
+    vector<string> tokens;
+    size_t start = 0, end = 0;
+    while ((end = ap_name.find('_', start)) != string::npos) {
+        tokens.push_back(ap_name.substr(start, end - start));
+        start = end + 1;
+    }
+    tokens.push_back(ap_name.substr(start));
+
+    if (tokens.size() < 2) {
+        cerr << "Invalid AP name format: " << ap_name << endl;
+        return nullptr;  // Return null if the format is invalid
+    }
+
+    string predicate_name = tokens.at(0);
+    auto predicate_it = pddlProblem_->domain->predicates.find(predicate_name);
+    auto last_valid_predicate_it = predicate_it;
+    size_t last_valid_token_num = 0;
+
+    // This loop tries to progressively add tokens to find a valid predicate
+    for (size_t token_num = 1; token_num < tokens.size(); ++token_num) {
+        predicate_name = predicate_name + name_connector_ + tokens.at(token_num);
+        predicate_it = pddlProblem_->domain->predicates.find(predicate_name);
+        if (predicate_it != pddlProblem_->domain->predicates.end()) {
+            last_valid_predicate_it = predicate_it;
+            last_valid_token_num = token_num;
+        }
+    }
+
+    if (last_valid_predicate_it == pddlProblem_->domain->predicates.end()) {
+        cerr << "Predicate not found for AP: " << ap_name << endl;
+        return nullptr;  // Return null if the predicate is not found
+    }
+
+    auto p_predicate = last_valid_predicate_it->second;
+
+    vector<string> bindings(tokens.begin() + last_valid_token_num + 1, tokens.end());
+    return p_predicate->bind(bindings, pddlProblem_);  // Return the bound predicate
+}
+
+
 
 map<pddlboat::PredicatePtr, bool> PDDLProblem::collect_bound_predicates(bdd& edge_cond) {
     // Vector to collect bound predicates (as a map from PredicatePtrs to a boolean)
@@ -696,53 +757,71 @@ map<pddlboat::PredicatePtr, bool> PDDLProblem::collect_bound_predicates(bdd& edg
         // Get the atomic proposition name
         string ap_name = domain_manager_->get_ap_name(i);
 
-        // Split the atomic proposition name by "_"
-        vector<string> tokens;
-        size_t start = 0, end = 0;
-        while ((end = ap_name.find('_', start)) != string::npos) {
-            tokens.push_back(ap_name.substr(start, end - start));
-            start = end + 1;
-        }
-        tokens.push_back(ap_name.substr(start));
-
-        if (tokens.size() < 2) {
-            cerr << "Invalid AP name format: " << ap_name << endl;
-            continue;
-        }
-
-        string predicate_name = tokens.at(0);
-        // Find the predicate definition
-        auto predicate_it = pddlProblem_->domain->predicates.find(predicate_name);
-        auto last_valid_predicate_it = predicate_it;
-
-        size_t last_valid_token_num = 0;
-
-        // Needed for rovers
-        for (size_t token_num = 1; token_num < tokens.size(); ++token_num) {
-            // First, check predicates connected by underscores
-            predicate_name = predicate_name + name_connector_ + tokens.at(token_num);
-            predicate_it = pddlProblem_->domain->predicates.find(predicate_name);
-            if (predicate_it != pddlProblem_->domain->predicates.end()) {
-                last_valid_predicate_it = predicate_it;
-                last_valid_token_num = token_num;
-            }
-        }
-        if (last_valid_predicate_it == pddlProblem_->domain->predicates.end()) {
-            std::cerr << "Predicate not found for AP: " << ap_name << std::endl;
-            continue;
-        }
-
-        auto p_predicate = last_valid_predicate_it->second;
-
-        vector<string> bindings(tokens.begin() + last_valid_token_num+1, tokens.end());
         // Bind the predicate
-        auto bound_pred = p_predicate->bind(bindings, pddlProblem_);
+        auto predicate = extract_predicate_from_ap_name(ap_name);
+
+        if (predicate == nullptr) {
+            cerr << "Predicate not found for AP: " << ap_name << endl;
+            continue;
+        }
 
         // Set boolean value based on the presence of positive or negative conditions
-        bound_predicates[bound_pred] = contains_pos;
+        bound_predicates[predicate] = contains_pos;
     }
     return bound_predicates;
 }
+
+map<pddlboat::PredicatePtr, bool> PDDLProblem::collect_bound_predicates_in_OR(bdd& edge_cond) {
+    // Vector to collect bound predicates (as a map from PredicatePtrs to a boolean)
+    map<pddlboat::PredicatePtr, bool> bound_predicates;
+
+    // Iterate over each individual disjunction element
+    for (size_t i = 0; i < bdd_dict_->var_map.size() + 1; ++i) {
+        bdd p = bdd_ithvar(i);  // Represents the atomic proposition 'p'
+        bdd np = bdd_nithvar(i); // Represents the negation of 'p'
+
+        // Check if this variable is part of the disjunction
+        if (bdd_simplify(edge_cond, p) == edge_cond) {
+            continue;  // Skip variables that are not part of the disjunction
+        }
+
+        // Get the atomic proposition name
+        string ap_name = domain_manager_->get_ap_name(i);
+
+        // Extract the predicate from the atomic proposition name
+        auto predicate = extract_predicate_from_ap_name(ap_name);
+        if (predicate == nullptr) {
+            cerr << "Predicate not found for AP: " << ap_name << endl;
+            continue;
+        }
+
+        // Add the predicate to the list of bound predicates
+        bool is_positive = (bdd_restrict(bdd_not(edge_cond), p) == bddfalse);
+        bound_predicates[predicate] = is_positive;
+    }
+
+    return bound_predicates;
+}
+
+void PDDLProblem::get_goals(const map<pddlboat::PredicatePtr, bool>& bound_predicates, vector<pddlboat::ExpressionPtr>& goals) {
+    for (const auto& pred_pair : bound_predicates) {
+        // Get the predicate and its associated boolean value 
+        // (true for positive, false for negated)
+        auto predicate = pred_pair.first;
+        bool is_positive = pred_pair.second;
+
+        // Create a literal according to its sign.
+        pddlboat::ExpressionPtr signed_predicate = predicate;
+        if (!is_positive) {
+            signed_predicate = pddlboat::makeNot(predicate);
+        }
+
+        // Add the predicate to the goals 
+        // (since it's disjunction, no constraints here)
+        goals.push_back(signed_predicate);
+    }
+}
+
 
 
 void PDDLProblem::split_constraints_and_goals(
